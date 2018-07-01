@@ -265,10 +265,22 @@ wire [7:0] fdc_din;
 reg  [7:0] fdc_dout;
 always_comb begin
 	case({fdc_rd,fdc_sel[3:1]})
-		'b1_000: fdc_dout = 8'h00;     // motor read 
+		'b1_000: fdc_dout = motor;     // motor read 
 		'b1_010: fdc_dout = u765_dout; // u765 read 
 		default: fdc_dout = 8'hFF;
 	endcase
+end
+
+reg motor = 0;
+always @(posedge clk_sys) begin
+	reg old_wr;
+	
+	old_wr <= fdc_wr;
+	if(~old_wr && fdc_wr && !fdc_sel[3:1]) begin
+		motor <= fdc_din[0];
+	end
+	
+	if(img_mounted) motor <= 0;
 end
 
 wire [7:0] u765_dout;
@@ -285,7 +297,7 @@ u765 u765
 	.ce(ce_u765),
 
 	.a0(fdc_sel[0]),
-	.ready(u765_ready),
+	.ready(u765_ready), // & motor),
 	.nRD(~(u765_sel & fdc_rd)),
 	.nWR(~(u765_sel & fdc_wr)),
 	.din(fdc_din),
