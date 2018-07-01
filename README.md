@@ -1,5 +1,6 @@
 # Amstrad for MiST board
-This core is refactored and cleaned version of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad)
+This core is refactored and cleaned version of [CoreAmstrad by Renaud Hélias](https://github.com/renaudhelias/CoreAmstrad).
+
 It's been done in order to understand the core and port it to other platform.
 
 ## Features
