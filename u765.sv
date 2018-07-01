@@ -155,23 +155,21 @@ reg [8:0] buff_addr;
 wire sd_buff_type;
 reg hds;
 
-generate
-	u765_dpram sbuf
-	(
-		.clock(clk_sys),
+u765_dpram sbuf
+(
+	.clock(clk_sys),
 
-		.address_a({sd_buff_type,hds,sd_buff_addr}),
-		.data_a(sd_buff_dout),
-		.wren_a(sd_buff_wr & sd_ack),
-		.q_a(sd_buff_din),
+	.address_a({sd_buff_type,hds,sd_buff_addr}),
+	.data_a(sd_buff_dout),
+	.wren_a(sd_buff_wr & sd_ack),
+	.q_a(sd_buff_din),
 
-		.address_b({sd_buff_type,hds,buff_addr}),
-		.data_b(buff_data_out),
-		.wren_b(buff_wr),
-		.q_b(buff_data_in)
-	);
-	reg buff_wr, buff_wait;
-endgenerate
+	.address_b({sd_buff_type,hds,buff_addr}),
+	.data_b(buff_data_out),
+	.wren_b(buff_wr),
+	.q_b(buff_data_in)
+);
+reg buff_wr, buff_wait;
 
 wire rd = nWR & ~nRD;
 wire wr = ~nWR & nRD;
@@ -286,6 +284,12 @@ always @(posedge clk_sys) begin
 							image_scan_state <= 0;
 							status[3][UPD765_ST3_WP] <= 0;
 							status[3][UPD765_ST3_RDY] <= 1;
+
+							//workaround: auto seek to 0
+							hds <= 0;
+							ncn <= 0;
+							image_track_offsets_addr <= 0;
+							seek_state <= 1;
 						end
 					end
 					buff_addr <= buff_addr + 1'd1;
@@ -330,7 +334,7 @@ always @(posedge clk_sys) begin
 		case(seek_state)
 			0: ;//no seek in progress
 			1: seek_state <= 2; //wait for image_track_offset_in
-			2: if (ready && image_ready && image_track_offsets_in) begin
+			2: if (image_ready && image_track_offsets_in) begin
 				    if (~sd_busy) begin
 				        sd_buff_type <= UPD765_SD_BUFF_TRACKINFO;
 				        sd_rd <= 1;
