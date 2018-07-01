@@ -286,6 +286,11 @@ always @(posedge clk_sys) begin
 							image_scan_state <= 0;
 							status[3][UPD765_ST3_WP] <= 0;
 							status[3][UPD765_ST3_RDY] <= 1;
+							//Read the trackinfo because the host may not issue a seek
+							//after the disc change, and the buffer will still contain
+							//the data from the previous disc
+							image_track_offsets_addr <= 9'd0;
+							seek_state <= 1;
 						end
 					end
 					buff_addr <= buff_addr + 1'd1;
