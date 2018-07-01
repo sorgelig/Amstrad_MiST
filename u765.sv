@@ -253,7 +253,7 @@ always @(posedge clk_sys) begin
 					image_scan_state<=2;
 				end
 			2: //process the header
-				if (~sd_busy & ~buff_wait) begin
+				if (~sd_busy & ~buff_wait& ~image_ready) begin
 					if (buff_addr == 0) begin
 						if (buff_data_in == "E")
 							image_edsk <= 1;
@@ -281,14 +281,13 @@ always @(posedge clk_sys) begin
 							image_scan_state <= 3;
 						end else begin
 							image_ready <= 1;
-							image_scan_state <= 0;
 							status[3][UPD765_ST3_WP] <= 0;
 							status[3][UPD765_ST3_RDY] <= 1;
-
-							//workaround: auto seek to 0
-							hds <= 0;
-							ncn <= 0;
-							image_track_offsets_addr <= 0;
+							//Read the trackinfo because the host may not issue a seek
+							//after the disk change, and the buffer will still contain
+							//the data from the previous disk
+							//seek will reset image_scan_state
+							image_track_offsets_addr <= 9'd0;
 							seek_state <= 1;
 						end
 					end
@@ -343,20 +342,26 @@ always @(posedge clk_sys) begin
 				        seek_state <= 3;
 				    end
 			   end else begin
-				    int_state <= 1;
-				    seek_state <= 0;
-				    pcn <= ncn;
-				    status[0] <= 8'h20;
-				    status[3][UPD765_ST3_T0] <= !ncn;
+					if (image_scan_state)
+						image_scan_state <= 0;
+					else begin
+						int_state <= 1;
+						status[0] <= 8'hE8; //seek error
+					end
+					seek_state <= 0;
 			   end
 			3: if (~sd_busy) begin
 				    if (hds == image_sides) begin
-				        int_state <= 1;
-				        seek_state <= 0;
-				        pcn <= ncn;
-				        status[0] <= 8'h20;
-				        status[3][UPD765_ST3_T0] <= !ncn;
-				    end else begin
+						if (image_scan_state) //seek after disk image open
+							image_scan_state <= 0;
+						else begin
+							int_state <= 1;
+							status[0] <= 8'h20;
+						end
+						status[3][UPD765_ST3_T0] <= !ncn;
+						seek_state <= 0;
+						pcn <= ncn;
+				    end else begin //read TrackInfo from the other head if 2 sided
 				        hds <= ~hds;
 				        image_track_offsets_addr <= image_track_offsets_addr + 1'd1;
 				        seek_state <= 1;
