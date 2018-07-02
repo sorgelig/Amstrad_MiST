@@ -202,7 +202,7 @@ always @(posedge clk_sys) begin
 	reg rtrack, write, rw_deleted;
 	reg [7:0] m_status;  //main status register
 	reg [7:0] status[4] = '{0, 0, 0, 0}; //st0-3
-	state_t state, command;
+(* maxfan = 50 *)	state_t state, command;
 	reg [7:0] ncn; //new cylinder number
 	reg [7:0] pcn; //present cylinder number
    reg ds0;
