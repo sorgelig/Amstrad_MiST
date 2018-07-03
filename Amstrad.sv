@@ -78,7 +78,7 @@ pll pll
 	.locked(locked)
 );
 
-reg ce_4n, ce_ref, ce_boot;
+reg ce_4n, ce_boot;
 reg ce_4p, ce_u765;
 reg ce_16;
 always @(negedge clk_sys) begin
@@ -88,7 +88,6 @@ always @(negedge clk_sys) begin
 	div4 <= div4 + 1'd1;
 
 	ce_4n   <= !div4;
-	ce_ref  <= !div4;
 	ce_boot <= !div4;
 
 	ce_4p   <= (div4 == 4);
@@ -210,38 +209,26 @@ wire [22:0] ram_a;
 wire  [7:0] ram_din;
 wire  [7:0] ram_dout;
 
-wire        zram_rd;
 wire  [7:0] zram_dout;
 wire [15:0] zram_addr;
 
-assign SDRAM_CKE = 1;
-//assign SDRAM_CLK = clk_sys;
-assign SDRAM_CLK = clk_vid;
+assign SDRAM_CLK = clk_sys;
 
-zsdram zsdram
+sdram sdram
 (
-	.init(~locked),
-	.clk(clk_vid),
-	.clkref(ce_ref),
+	.*,
 
-	.oe  (reset ? 1'b0      : ram_r),
+	.init(~locked),
+	.clk(clk_sys),
+
+	.rd  (reset ? 1'b0      : ram_r),
 	.we  (reset ? boot_wr   : ram_w),
 	.addr(reset ? boot_a    : ram_a),
 	.din (reset ? boot_dout : ram_din),
 	.dout(ram_dout),
 
-	.sd_cs(SDRAM_nCS),
-	.sd_we(SDRAM_nWE),
-	.sd_ras(SDRAM_nRAS),
-	.sd_cas(SDRAM_nCAS),
-	.sd_dqm({SDRAM_DQMH, SDRAM_DQML}),
-	.sd_addr(SDRAM_A),
-	.sd_ba(SDRAM_BA),
-	.sd_data(SDRAM_DQ),
-
-	.zram_oe(zram_rd & ~reset),
-	.zram_addr(zram_addr),
-	.zram_dout(zram_dout)
+	.vaddr({2'b10, zram_addr}),
+	.vdata(zram_dout)
 );
 
 reg [7:0] rom_mask;
@@ -362,7 +349,6 @@ Amstrad_motherboard motherboard
 	.ram_Din(ram_dout | rom_mask),
 	.ram_Dout(ram_din),
 
-	.zram_rd(zram_rd),
 	.zram_din(zram_dout),
 	.zram_addr(zram_addr)
 );
