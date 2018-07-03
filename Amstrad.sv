@@ -90,8 +90,8 @@ always @(negedge clk_sys) begin
 	ce_4n   <= !div4;
 	ce_boot <= !div4;
 
-	ce_4p   <= (div4 == 4);
-	ce_u765 <= (div4 == 4);
+	ce_4p   <= (div4 == 8);
+	ce_u765 <= (div4 == 8);
 
 	div16 <= div16 + 1'd1;
 
