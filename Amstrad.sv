@@ -79,7 +79,7 @@ pll pll
 );
 
 reg ce_4n, ce_boot;
-reg ce_4p, ce_u765;
+reg ce_4p, ce_ref, ce_u765;
 reg ce_16;
 always @(negedge clk_sys) begin
 	reg [3:0] div4  = 0;
@@ -92,6 +92,7 @@ always @(negedge clk_sys) begin
 
 	ce_4p   <= (div4 == 8);
 	ce_u765 <= (div4 == 8);
+	ce_ref  <= (div4 == 8);
 
 	div16 <= div16 + 1'd1;
 
@@ -214,21 +215,22 @@ wire [15:0] zram_addr;
 
 assign SDRAM_CLK = clk_sys;
 
-sdram sdram
+zsdram zsdram
 (
 	.*,
 
 	.init(~locked),
 	.clk(clk_sys),
+	.clkref(ce_ref),
 
-	.rd  (reset ? 1'b0      : ram_r),
+	.oe  (reset ? 1'b0      : ram_r),
 	.we  (reset ? boot_wr   : ram_w),
 	.addr(reset ? boot_a    : ram_a),
 	.din (reset ? boot_dout : ram_din),
 	.dout(ram_dout),
 
-	.vaddr({2'b10, zram_addr}),
-	.vdata(zram_dout)
+	.zram_addr(zram_addr),
+	.zram_dout(zram_dout)
 );
 
 reg [7:0] rom_mask;
