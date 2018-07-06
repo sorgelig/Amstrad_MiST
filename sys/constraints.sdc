@@ -29,8 +29,8 @@ set_multicycle_path -to [get_ports {VGA_*}] -setup 4
 set_multicycle_path -to [get_ports {VGA_*}] -hold 4
 
 # T80 just cannot run in 64 MHz, but it's safe to allow 2 clock cycles for the paths in it
-set_multicycle_path -from {Amstrad_motherboard:motherboard|T80se:CPU|*} -to [get_clocks {pll|altpll_component|auto_generated|pll1|clk[1]}] -setup 2
-set_multicycle_path -from {Amstrad_motherboard:motherboard|T80se:CPU|*} -to [get_clocks {pll|altpll_component|auto_generated|pll1|clk[1]}] -hold 2
+set_multicycle_path -from {Amstrad_motherboard:motherboard|T80pa:CPU|*} -to [get_clocks {pll|altpll_component|auto_generated|pll1|clk[1]}] -setup 2
+set_multicycle_path -from {Amstrad_motherboard:motherboard|T80pa:CPU|*} -to [get_clocks {pll|altpll_component|auto_generated|pll1|clk[1]}] -hold 2
 
 # False paths
 
