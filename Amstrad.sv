@@ -60,7 +60,7 @@ localparam CONF_STR = {
 	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
 	"O1,Model,Amstrad,Schneider;",
 	"O2,CRTC,1,0;",
-	"O3,Wait states,Quick,Slow;",
+	"O3,CPU timings,Original,Fast;",
 	"T0,Reset;"
 };
 
@@ -307,7 +307,6 @@ u765 u765
 
 wire  [3:0] ppi_jumpers = {2'b11, ~status[1], 1'b1};
 wire        crtc_type = ~status[2];
-wire        wait_time = status[3];
 
 Amstrad_motherboard motherboard
 (
@@ -320,7 +319,7 @@ Amstrad_motherboard motherboard
 	.PS2_CLK(ps2_clk),
 	.PS2_DATA(ps2_data),
 
-	.ga_shunt(wait_time),
+	.no_wait(status[3]),
 	.ppi_jumpers(ppi_jumpers),
 	.crtc_type(crtc_type),
 
