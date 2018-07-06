@@ -280,14 +280,14 @@ set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS ON
 set_global_assignment -name OPTIMIZE_HOLD_TIMING "ALL PATHS"
 set_global_assignment -name OPTIMIZE_MULTI_CORNER_TIMING ON
 set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
-set_global_assignment -name SEED 1
+set_global_assignment -name SEED 2
 
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name QIP_FILE t80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name VERILOG_FILE zsdram.v
-set_global_assignment -name VHDL_FILE YM2149_linmix_AmstradStereo.vhd
+set_global_assignment -name VHDL_FILE YM2149_AB_BC.vhd
 set_global_assignment -name VHDL_FILE pio.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE color_mix.sv
 set_global_assignment -name VHDL_FILE KEYBOARD_driver.vhd
