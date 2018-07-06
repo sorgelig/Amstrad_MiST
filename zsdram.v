@@ -40,16 +40,16 @@
 module zsdram (
 
 	// interface to the MT48LC16M16 chip
-	inout  [15:0] 		SDRAM_DQ,   // 16 bit bidirectional data bus
-	output [12:0]		SDRAM_A,    // 13 bit multiplexed address bus
-	output      		SDRAM_DQML, // byte mask
-	output      		SDRAM_DQMH, // byte mask
-	output [1:0] 		SDRAM_BA,   // two banks
-	output 				SDRAM_nCS,  // a single chip select
-	output 				SDRAM_nWE,  // write enable
-	output 				SDRAM_nRAS, // row address select
-	output 				SDRAM_nCAS, // columns address select
-	output 				SDRAM_CKE,
+	inout  reg[15:0] 		SDRAM_DQ,   // 16 bit bidirectional data bus
+	output reg[12:0]		SDRAM_A,    // 13 bit multiplexed address bus
+	output reg     		SDRAM_DQML, // byte mask
+	output reg     		SDRAM_DQMH, // byte mask
+	output reg[1:0] 		SDRAM_BA,   // two banks
+	output reg				SDRAM_nCS,  // a single chip select
+	output reg				SDRAM_nWE,  // write enable
+	output reg				SDRAM_nRAS, // row address select
+	output reg				SDRAM_nCAS, // columns address select
+	output reg				SDRAM_CKE,
 
 	// cpu/chipset interface
 	input 		 		init,			// init signal after FPGA config to initialize RAM
@@ -150,23 +150,31 @@ localparam CMD_LOAD_MODE       = 4'b0000;
 
 wire [3:0] sd_cmd;   // current command sent to sd ram
 
+always @(posedge clk) begin
 // drive control signals according to current command
-assign SDRAM_nCS  = sd_cmd[3];
-assign SDRAM_nRAS = sd_cmd[2];
-assign SDRAM_nCAS = sd_cmd[1];
-assign SDRAM_nWE  = sd_cmd[0];
-assign SDRAM_CKE  = ~init;
+	SDRAM_nCS  <= sd_cmd[3];
+	SDRAM_nRAS <= sd_cmd[2];
+	SDRAM_nCAS <= sd_cmd[1];
+	SDRAM_nWE  <= sd_cmd[0];
+	SDRAM_CKE  <= ~init;
 
-// drive ram data lines when writing, set them as inputs otherwise
-// the eight bits are sent on both bytes ports. Which one's actually
-// written depends on the state of dqm of which only one is active
-// at a time when writing
-assign SDRAM_DQ = (wr && ram_req) ? {din, din}:16'bZZZZZZZZZZZZZZZZ;
+	//The output buffers are High-Z (two-clock latency) during a READ cycle.
+	//Input data is masked during a WRITE cycle
+	//LDQM corresponds to DQ[7:0], and UDQM corresponds to DQ[15:8]. LDQM and UDQM are considered same-state when referenced as DQM.
+	{SDRAM_DQMH,SDRAM_DQML} <= (wr && ram_req) ? { ~addr[0], addr[0] }:2'b00;
 
-//The output buffers are High-Z (two-clock latency) during a READ cycle.
-//Input data is masked during a WRITE cycle
-//LDQM corresponds to DQ[7:0], and UDQM corresponds to DQ[15:8]. LDQM and UDQM are considered same-state when referenced as DQM.
-assign {SDRAM_DQMH,SDRAM_DQML} = (wr && ram_req) ? { ~addr[0], addr[0] }:2'b00;
+	// drive ram data lines when writing, set them as inputs otherwise
+	// the eight bits are sent on both bytes ports. Which one's actually
+	// written depends on the state of dqm of which only one is active
+	// at a time when writing
+	SDRAM_DQ <= (wr && ram_req) ? {din, din}:16'bZZZZZZZZZZZZZZZZ;
+	SDRAM_A <= reset ? reset_addr : run_addr;
+	// bank address (CMD_ACTIVE)
+	//Daisy
+	SDRAM_BA <= ((q == STATE_CMD_START || q == STATE_CMD_CONT) && ram_req)  ? addr[23:22] :
+               ((q == STATE_CMD_START || q == STATE_CMD_CONT) && zram_req) ? 2'b00 : 2'b00;
+end
+
 
 reg addr0;
 always @(posedge clk) begin
@@ -222,11 +230,6 @@ wire [12:0] run_addr =
 	(q == STATE_CMD_CONT  && zram_req)? { 5'b00100, zram_addr[8:1]}      :
 	13'b0000000000000;
 
-assign SDRAM_A = reset ? reset_addr : run_addr;
 
-// bank address (CMD_ACTIVE)
-//Daisy
-assign SDRAM_BA = ((q == STATE_CMD_START || q == STATE_CMD_CONT) && ram_req)  ? addr[23:22] :
-               ((q == STATE_CMD_START || q == STATE_CMD_CONT) && zram_req) ? 2'b00 : 2'b00;
 
 endmodule
