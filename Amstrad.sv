@@ -312,13 +312,13 @@ wire        wait_time = status[3];
 Amstrad_motherboard motherboard
 (
 	.RESET_n(~reset),
-	.CLK4MHz(clk_sys & ce_4p),
-	.nCLK4MHz(clk_sys & ce_4n),
+	.CLK(clk_sys),
+	.CE_4P(ce_4p),
+	.CE_4N(ce_4n),
+	.CE_16(ce_16),
 
 	.PS2_CLK(ps2_clk),
 	.PS2_DATA(ps2_data),
-
-	.CLK16MHz(clk_sys & ce_16),
 
 	.ga_shunt(wait_time),
 	.ppi_jumpers(ppi_jumpers),
