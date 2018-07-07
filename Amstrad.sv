@@ -58,10 +58,10 @@ localparam CONF_STR = {
 	"S,DSK,Mount Disk;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
-	"O1,Model,Amstrad,Schneider;",
+	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
 	"O2,CRTC,1,0;",
 	"O3,CPU timings,Original,Fast;",
-	"T0,Reset;"
+	"T0,Reset & apply model;"
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -78,8 +78,9 @@ pll pll
 	.locked(locked)
 );
 
-reg ce_4n, ce_boot;
+reg ce_4n;
 reg ce_4p, ce_ref, ce_u765;
+reg ce_boot;
 reg ce_16;
 always @(negedge clk_sys) begin
 	reg [3:0] div = 0;
@@ -182,6 +183,7 @@ wire        reset = status[0] | buttons[1] | rom_download;
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
+reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
 
 always_comb begin
@@ -192,10 +194,16 @@ always_comb begin
 	boot_a[22:14] = '1;
 
 	case(ioctl_addr[24:14])
-			0: boot_a[22:14] = 9'h000;
-			1: boot_a[22:14] = 9'h100;
-			2: boot_a[22:14] = 9'h107;
-	default: boot_wr = 0;
+		   0,3: boot_a[22:14] = 9'h000;
+		   1,4: boot_a[22:14] = 9'h100;
+		   2,5: boot_a[22:14] = 9'h107;
+	  default: boot_wr = 0;
+	endcase
+
+	case(ioctl_addr[24:14])
+		 0,1,2: boot_bank = 0;
+		 3,4,5: boot_bank = 1;
+	  default: boot_bank = 0;
 	endcase
 end
 
@@ -223,6 +231,7 @@ zsdram zsdram
 	.oe  (reset ? 1'b0      : ram_r),
 	.we  (reset ? boot_wr   : ram_w),
 	.addr(reset ? boot_a    : ram_a),
+	.bank(reset ? boot_bank : model),
 	.din (reset ? boot_dout : ram_din),
 	.dout(ram_dout),
 
@@ -239,6 +248,9 @@ always_comb begin
 	default: rom_mask = 'hFF;
 	endcase
 end
+
+reg model = 0;
+always @(posedge clk_sys) if(reset) model <= status[4];
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -302,7 +314,7 @@ u765 u765
 
 //////////////////////////////////////////////////////////////////////////
 
-wire  [3:0] ppi_jumpers = {2'b11, ~status[1], 1'b1};
+wire  [3:0] ppi_jumpers = {2'b11, ~status[5], 1'b1};
 wire        crtc_type = ~status[2];
 
 Amstrad_motherboard motherboard
@@ -341,6 +353,7 @@ Amstrad_motherboard motherboard
 	.GREEN(g),
 	.BLUE(b),
 
+	.ram64k(model),
 	.ram_R(ram_r),
 	.ram_W(ram_w),
 	.ram_A(ram_a),
