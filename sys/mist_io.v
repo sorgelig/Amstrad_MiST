@@ -184,27 +184,31 @@ always@(posedge clk_sys) begin
 	reg old_ss1, old_ss2;
 	reg old_ready1, old_ready2;
 	reg [2:0] b_wr;
+	reg       got_ps2 = 0;
 
 	old_ss1 <= CONF_DATA0;
 	old_ss2 <= old_ss1;
 	old_ready1 <= spi_data_ready;
 	old_ready2 <= old_ready1;
-
+	
 	sd_buff_wr <= b_wr[0];
 	if(b_wr[2] && (~&sd_buff_addr)) sd_buff_addr <= sd_buff_addr + 1'b1;
 	b_wr <= (b_wr<<1);
 
 	if(old_ss2) begin
+		got_ps2      <= 0;
 		sd_ack       <= 0;
 		sd_ack_conf  <= 0;
 		sd_buff_addr <= 0;
-		if(cmd == 4) ps2_mouse[24] <= ~ps2_mouse[24]; 
-		if(cmd == 5) begin
-			ps2_key <= {~ps2_key[10], pressed, extended, ps2_key_raw[7:0]};
-			if(ps2_key_raw == 'hE012E07C) ps2_key[9:0] <= 'h37C; // prnscr pressed
-			if(ps2_key_raw == 'h7CE0F012) ps2_key[9:0] <= 'h17C; // prnscr released
-			if(ps2_key_raw == 'hF014F077) ps2_key[9:0] <= 'h377; // pause  pressed
-		end 
+		if(got_ps2) begin
+			if(cmd == 4) ps2_mouse[24] <= ~ps2_mouse[24]; 
+			if(cmd == 5) begin
+				ps2_key <= {~ps2_key[10], pressed, extended, ps2_key_raw[7:0]};
+				if(ps2_key_raw == 'hE012E07C) ps2_key[9:0] <= 'h37C; // prnscr pressed
+				if(ps2_key_raw == 'h7CE0F012) ps2_key[9:0] <= 'h17C; // prnscr released
+				if(ps2_key_raw == 'hF014F077) ps2_key[9:0] <= 'h377; // pause  pressed
+			end
+		end
 	end
 	else
 	if(old_ready2 ^ old_ready1) begin
@@ -228,6 +232,7 @@ always@(posedge clk_sys) begin
 
 				// store incoming ps2 mouse bytes 
 				8'h04: begin
+						got_ps2 <= 1;
 						case(byte_cnt)
 							2: ps2_mouse[7:0]   <= spi_data_in;
 							3: ps2_mouse[15:8]  <= spi_data_in;
@@ -239,6 +244,7 @@ always@(posedge clk_sys) begin
 
 				// store incoming ps2 keyboard bytes 
 				8'h05: begin
+						got_ps2 <= 1;
 						ps2_key_raw[31:0] <= {ps2_key_raw[23:0], spi_data_in}; 						
 						ps2_kbd_fifo[ps2_kbd_wptr] <= spi_data_in; 
 						ps2_kbd_wptr <= ps2_kbd_wptr + 1'd1;
