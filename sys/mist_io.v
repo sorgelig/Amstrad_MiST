@@ -84,6 +84,14 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output            ps2_mouse_clk,
 	output reg        ps2_mouse_data,
 
+	// ps2 alternative interface. 
+
+	// [8] - extended, [9] - pressed, [10] - toggles with every press/release
+	output reg [10:0] ps2_key = 0,
+
+	// [24] - toggles with every event
+	output reg [24:0] ps2_mouse = 0,
+
 	// ARM -> FPGA download
 	input             ioctl_ce,
 	output reg        ioctl_download = 0, // signal indicating an active download
@@ -167,6 +175,10 @@ always@(posedge SPI_SCK or posedge CONF_DATA0) begin
 	end
 end
 
+reg [31:0] ps2_key_raw = 0;
+wire       pressed  = (ps2_key_raw[15:8] != 8'hf0);
+wire       extended = (~pressed ? (ps2_key_raw[23:16] == 8'he0) : (ps2_key_raw[15:8] == 8'he0));
+
 // transfer to clk_sys domain
 always@(posedge clk_sys) begin
 	reg old_ss1, old_ss2;
@@ -186,6 +198,13 @@ always@(posedge clk_sys) begin
 		sd_ack       <= 0;
 		sd_ack_conf  <= 0;
 		sd_buff_addr <= 0;
+		if(cmd == 4) ps2_mouse[24] <= ~ps2_mouse[24]; 
+		if(cmd == 5) begin
+			ps2_key <= {~ps2_key[10], pressed, extended, ps2_key_raw[7:0]};
+			if(ps2_key_raw == 'hE012E07C) ps2_key[9:0] <= 'h37C; // prnscr pressed
+			if(ps2_key_raw == 'h7CE0F012) ps2_key[9:0] <= 'h17C; // prnscr released
+			if(ps2_key_raw == 'hF014F077) ps2_key[9:0] <= 'h377; // pause  pressed
+		end 
 	end
 	else
 	if(old_ready2 ^ old_ready1) begin
@@ -198,6 +217,7 @@ always@(posedge clk_sys) begin
 			if((cmd == 8'h17) || (cmd == 8'h18)) sd_ack <= 1;
 			mount_strobe <= 0;
 
+			if(cmd == 5) ps2_key_raw <= 0;
 		end else begin
 		
 			case(cmd)
@@ -208,12 +228,18 @@ always@(posedge clk_sys) begin
 
 				// store incoming ps2 mouse bytes 
 				8'h04: begin
+						case(byte_cnt)
+							2: ps2_mouse[7:0]   <= spi_data_in;
+							3: ps2_mouse[15:8]  <= spi_data_in;
+							4: ps2_mouse[23:16] <= spi_data_in;
+						endcase 
 						ps2_mouse_fifo[ps2_mouse_wptr] <= spi_data_in; 
 						ps2_mouse_wptr <= ps2_mouse_wptr + 1'd1;
 					end
 
 				// store incoming ps2 keyboard bytes 
 				8'h05: begin
+						ps2_key_raw[31:0] <= {ps2_key_raw[23:0], spi_data_in}; 						
 						ps2_kbd_fifo[ps2_kbd_wptr] <= spi_data_in; 
 						ps2_kbd_wptr <= ps2_kbd_wptr + 1'd1;
 					end
