@@ -108,8 +108,8 @@ end
 //////////////////////////////////////////////////////////////////////////
 
 wire [31:0] sd_lba;
-wire        sd_rd;
-wire        sd_wr;
+wire        sd_rdA, sd_rdB;
+wire        sd_wrA, sd_wrB;
 wire        sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
@@ -151,8 +151,8 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.sd_conf(0),
 	.sd_sdhc(1),
 	.sd_lba(sd_lba),
-	.sd_rd(sd_rd),
-	.sd_wr(sd_wr),
+	.sd_rd(sd_rdA | sd_rdB),
+	.sd_wr(sd_wrA | sd_wrB),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
@@ -292,17 +292,18 @@ u765 u765
 	.ce(ce_u765),
 
 	.a0(fdc_sel[0]),
-	.ready(u765_ready), // & motor),
+	.ready('{u765_ready, 0}), // & motor),
+	.available('{1, 0}),
 	.nRD(~(u765_sel & io_rd)),
 	.nWR(~(u765_sel & io_wr)),
 	.din(io_dout),
 	.dout(u765_dout),
 
-	.img_mounted(img_mounted),
+	.img_mounted('{img_mounted, 0}),
 	.img_size(img_size[19:0]),
 	.sd_lba(sd_lba),
-	.sd_rd(sd_rd),
-	.sd_wr(sd_wr),
+	.sd_rd('{ sd_rdA, sd_rdB }),
+	.sd_wr('{ sd_wrA, sd_wrB }),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
