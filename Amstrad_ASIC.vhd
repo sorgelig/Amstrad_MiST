@@ -147,7 +147,8 @@ architecture Behavioral of Amstrad_ASIC is
 	signal RVtotAdjust:std_logic_vector(7 downto 0):="00000000";
 	signal RVdisp:std_logic_vector(7 downto 0):="00011001";
 	signal RVsyncpos:std_logic_vector(7 downto 0):="00011110";
-	signal RRmax:std_logic_vector(7 downto 0):="00000111";
+	signal RRmax:std_logic_vector(7 downto 0);
+	signal RRmax9:std_logic_vector(7 downto 0):="00000111";
 	
 	signal Skew:std_logic_vector(1 downto 0):="00";
 	signal interlaceVideo:std_logic:='0';
@@ -443,8 +444,6 @@ begin
 							else
 								scanAdd<=x"02";
 							end if;
-							--maxRaster = reg[9] | interlaceVideo;
-							RRmax<=(registres(9) and x"1f") or "0000000" & registres(8)(1);
 							--CRTC3 hDispDelay = ((reg[8] >> 4) & 0x04);
 							Skew<=registres(8)(5 downto 4);
 							
@@ -452,7 +451,7 @@ begin
 						when 9=> -- max raster adress
 							-- Validation des registres 9 et 4 aprР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р Рѓs reprogrammation (Pendant que C4 = 0, buffР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©risР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©s sinon)
 							--maxRaster = value | interlaceVideo;
-							RRmax<=(registres(9) and x"1f") or "0000000" & interlaceVideo;
+							RRmax9<= (registres(9) and x"1f");
 						when 10=>NULL; -- and x"7f";
 							-- cursor start raster 
 						when 11=>NULL; -- and x"1f";
@@ -589,6 +588,9 @@ begin
 	end if;
 end process ctrcConfig_process;
 
+--maxRaster = reg[9] | interlaceVideo;
+RRmax <= RRmax9(7 downto 1) & (RRmax9(0) or interlaceVideo);
+
 	-- DANGEROUS WARNING : CRTC PART WAS TESTED AND VALIDATED USING TESTBENCH
 simple_GateArray_process : process(reset,CLK) is
  
@@ -711,8 +713,8 @@ begin
 				-- http://cpctech.cpc-live.com/docs/hd6845s/hd6845sp.htm 0=>16
 				-- http://cpctech.cpc-live.com/docs/um6845r/um6845r.htm 0=>???
 				-- http://cpctech.cpc-live.com/docs/mc6845/mc6845.htm 0=>ignore
-				if ((frame_oddEven='1' and hCC = halfR0)
-				or (frame_oddEven='0' and hCC=RHsyncpos)) and (CRTC_TYPE='1' or RHwidth/=x"0") then -- and etat_hsync=DO_NOTHING
+				if ((frame_oddEven='1' and hCC = halfR0) or (frame_oddEven='0' and hCC=RHsyncpos))
+					and (crtc_type='1' or RHwidth/=x"0") then -- and etat_hsync=DO_NOTHING
 					--hSyncCount = 0;
 					hSyncCount:= x"0";
 					--if (hDisp && CRTCType == 1 && hSyncWidth == (reg[3] & 0x0f)) {
