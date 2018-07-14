@@ -284,10 +284,9 @@ begin
 	end process;
 
 ctrcConfig_process:process(reset,CLK) is
-	variable reg_select32 : std_logic_vector(7 downto 0);
-	variable reg_select : integer range 0 to 17;
+	variable reg_select : integer range 0 to 31;
 	-- normally 0..17 but 0..31 in JavaCPC
-	type registres_type is array(0 to 17) of std_logic_vector(7 downto 0);
+	type registres_type is array(0 to 31) of std_logic_vector(7 downto 0);
 	variable registres:registres_type := (others=>(others=>'0'));
 	variable halfR0_mem:std_logic_vector(7 downto 0);
 	variable ink:STD_LOGIC_VECTOR(3 downto 0);
@@ -339,17 +338,12 @@ begin
 				if A15_A14_A9_A8(0)='0' then
 					if IO_W='1' then
 						-- DР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©codage complet du numР вЂњРЎвЂњР вЂ“РІР‚в„ўР вЂњРІР‚В Р Р†Р вЂљРІвЂћСћР вЂњРЎвЂњР Р†Р вЂљРЎв„ўР вЂњРІР‚С™Р вЂ™Р’В©ro de registre sur le port &BFxx : Oui
-						reg_select32:=D and x"1F";
-						if reg_select32<=x"11" then -- < 17
-							reg_select:=conv_integer(reg_select32);
-						else
-							reg_select:=17; -- out of range :p
-						end if;
+						reg_select:=conv_integer(D(4 downto 0));
 					else
 						-- parasite : pull up
-						reg_select32:=x"1F";
+						reg_select:=31;
 					end if;
-				elsif reg_select32<=x"11" then
+				else
 					if IO_W='1' then
 						registres(reg_select):=D;
 					else
@@ -483,6 +477,7 @@ begin
 							--light pen H (read only)
 						when 17=>NULL;
 							--light pen L (read only)
+						when others => NULL;
 					end case;
 				end if;
 			elsif A15_A14_A9_A8(2)='0' and A15_A14_A9_A8(1)='1' then-- A9_READ
@@ -526,56 +521,55 @@ begin
 				else
 					-- type 0 : nothing (return x"00")
 					-- type 1 : read status
-					if reg_select32 = x"0A" then -- R10
-						Dout<=registres(10) and x"7f"; -- applying the write mask here
-					elsif reg_select32 = x"0B" then -- R11
-						Dout<=registres(11) and x"1f"; -- applying the write mask here
-					elsif reg_select32 = x"0C" then -- R12
-						if crtc_type='0' then
-							--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
-							Dout<=registres(12) and x"3f";  -- applying the write mask here
-						else
-							-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
-							--CRTC1 UM6845R: Start Address Registers cannot be read.
-							Dout<=x"00"; -- type 1
-						end if;
-						
-					elsif reg_select32 = x"0D" then -- R13
-						if crtc_type='0' then
-							Dout<=registres(13); -- type 0
-							--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
-						else
-							--CRTC1 UM6845R: Start Address Registers cannot be read.
-							-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
-							Dout<=x"00"; -- type 1 & 2
-						end if;
-					elsif reg_select32 = x"0E" then -- R14
-						--if crtc_type='0' then
-						Dout<=registres(14) and x"3f"; -- applying the write mask here
-						--else
-						--	Dout<=registres(14);
-						--end if;
-					elsif reg_select32 = x"0F" then -- R15	
-						Dout<=registres(15);-- all types
-					elsif reg_select32 = x"10" then -- R16
-						--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
-						Dout<=x"00"; --registres(16) and x"3f";-- all types
-					elsif reg_select32 = x"11" then -- R17
-						--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
-						Dout<=x"00"; --registres(17);-- all types
-					elsif reg_select32 = x"FF" then
-						if crtc_type='0' then
-							-- registers 18-30 read as 0 on type1, register 31 reads as 0x0ff.
-							Dout<=x"FF";
-						else
+					case reg_select is
+						when 10=>
+							Dout<=registres(10) and x"7f"; -- applying the write mask here
+						when 11=>
+							Dout<=registres(11) and x"1f"; -- applying the write mask here
+						when 12=>
+							if crtc_type='0' then
+								--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
+								Dout<=registres(12) and x"3f";  -- applying the write mask here
+							else
+								--CRTC1 UM6845R: Start Address Registers cannot be read.
+								Dout<=x"00"; -- type 1
+							end if;
+						when 13=>
+							if crtc_type='0' then
+								Dout<=registres(13); -- type 0
+								--CRTC0 HD6845S/MC6845: Start Address Registers (R12 and R13) can be read.
+							else
+								--CRTC1 UM6845R: Start Address Registers cannot be read.
+								-- Lecture des registres 12 and 13 sur le port &BFxx : >>non<<
+								Dout<=x"00"; -- type 1 & 2
+							end if;
+						when 14=>
+							--if crtc_type='0' then
+							Dout<=registres(14) and x"3f"; -- applying the write mask here
+							--else
+							--	Dout<=registres(14);
+							--end if;
+						when 15=>
+							Dout<=registres(15);-- all types
+						when 16=>
+							--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
+							Dout<=x"00"; --registres(16) and x"3f";-- all types
+						when 17=>
+							--	Light Pen Address (read only, don't dependant on write !!!) - "Emulator Sucks"
+							Dout<=x"00"; --registres(17);-- all types
+						when 31=>
+							if crtc_type='1' then
+								-- registers 18-30 read as 0 on type1, register 31 reads as 0x0ff.
+								Dout<=x"FF";
+							else
+								Dout<=x"00";
+							end if;
+						when others=>
+							-- 1. On type 0 and 1, if a Write Only register is read from, "0" is returned.
+							-- registers 18-31 read as 0, on type 0 and 2.
+							-- registers 18-30 read as 0 on type1
 							Dout<=x"00";
-						end if;
-					else
-						-- 1. On type 0 and 1, if a Write Only register is read from, "0" is returned.
-						-- registers 18-31 read as 0, on type 0 and 2.
-						-- registers 18-30 read as 0 on type1
-						Dout<=x"00";
-					end if;
+					end case;
 				end if;
 			else
 				--JavaCPC readPort() not implemented
@@ -860,19 +854,25 @@ begin
 				
 				--DISPTMG signal defines the border. When DISPTMG is "1" the border colour is output by the Gate-Array to the display.
 				--The DISPTMG can be forced using R8 (DISPTMG Skew) on type 0,3 and 4 or by setting R6=0 on type 1.
-				if LineCounter=RVDisp and RasterCounter=0 and crtc_type='1' then
-					--redondance ici de cas newFrame() (dР вЂњР’В©jР вЂњР’В  traitР вЂњР’В© ailleur)
-					--checkHDisp() -- if (reg[6] != 0) { --listener.hDispStart();
-					dispV:='0';
-					-- Scan is not currently running in vertical blanking time-span.
-					--VBLANK<='1';
-				elsif LineCounter=0 then
+				
+				if LineCounter=0 then
 					dispV:='1';
 					-- Scan currently is in vertical blanking time-span.
 					--VBLANK<='0';
-				elsif LineCounter=RVDisp and RasterCounter=0 and crtc_type='0' then
+				end if;
+
+				if LineCounter=RVDisp then
 					--redondance ici de cas newFrame() (dР вЂњР’В©jР вЂњР’В  traitР вЂњР’В© ailleur)
-					dispV:='0';
+					--checkHDisp() -- if (reg[6] != 0) { --listener.hDispStart();
+					if RVDisp = X"00" and crtc_type='0' then
+						if RasterCounter>0 then
+							dispV:='0';
+						end if;
+					else
+						dispV:='0';
+					end if;
+					-- Scan is not currently running in vertical blanking time-span.
+					--VBLANK<='1';
 				end if;
 				if LineCounter=0 then
 					LineCounter_is0<=true;
