@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+--
+-- Extracted to separate entity, optimized and tweaked
+-- (c) 2018 Sorgelig
+--
+--------------------------------------------------------------------------------
+--
 --    {@{@{@{@{@{@
 --  {@{@{@{@{@{@{@{@  This code is covered by CoreAmstrad synthesis r005
 --  {@    {@{@    {@  A core of Amstrad CPC 6128 running on MiST-board platform
@@ -7,12 +14,6 @@
 --  {@{@{@{@{@{@{@{@   @see http://code.google.com/p/mist-board/
 --    {@{@{@{@{@{@     @see FPGAmstrad at CPCWiki
 --
---
---------------------------------------------------------------------------------
--- FPGAmstrad_amstrad_motherboard.Amstrad_ASIC
--- VRAM/PRAM write
--- CRTC interrupt, IO_ACK
--- WAIT_n
 --------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -21,24 +22,15 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 -- https://sourceforge.net/p/jemu/code/HEAD/tree/JEMU/src/jemu/system/cpc/GateArray.java
 
--- Being clear about address/data :
--- 12/13 : ADRESSE_maRegister update, upper to 9 isn't used
--- 0 1 2 3 do run setEvents => strange it seems about HORIZONTALS
--- 7 seem making effects if its value is 0 but it seems a source code erratum
--- 3 does call setReg3(value) which rules under hsyncWidth and vsyncWidth
--- 6 does call setReg6() with some border effect on a demo
--- 8 does call setReg8(value) interlace
-
 -- ink 0,2,20
 -- speed ink 1,1
-entity Amstrad_ASIC is
+entity Amstrad_GA is
 	Generic (
 		--HD6845S 	Hitachi 	0 HD6845S_WriteMaskTable type 0 in JavaCPC
 		--UM6845 	UMC 		0
 		--UM6845R 	UMC 		1 UM6845R_WriteMaskTable type 1 in JavaCPC <==
 		--MC6845 	Motorola	2 
-		M1_OFFSET:integer :=3; -- from 0 to 3
-		SOUND_OFFSET:integer :=1; -- from 0 to 3 =(M1_OFFSET+2)%4
+
 		-- output pixels
 		-- Amstrad
 		-- 
@@ -89,87 +81,30 @@ entity Amstrad_ASIC is
 		reset     : in  STD_LOGIC;
 
 		VMODE     : out STD_LOGIC_VECTOR (1 downto 0);
-		crtc_type : in  std_logic;
 		cyc1MHz   : out STD_LOGIC;
 
 		int       : out STD_LOGIC:='0'; -- JavaCPC reset init
-		crtc_VSYNC: out STD_LOGIC:='0';
-		crtc_A    : out STD_LOGIC_VECTOR (14 downto 0):=(others=>'0');
-		crtc_D    : in  STD_LOGIC_VECTOR (15 downto 0);
-
-		A15_A14_A9_A8 : in  STD_LOGIC_VECTOR (3 downto 0);
+		crtc_vs   : in  STD_LOGIC;
+		crtc_hs   : in  STD_LOGIC;
+		crtc_de   : in  STD_LOGIC;
+		vram_D    : in  STD_LOGIC_VECTOR (15 downto 0);
+		
+		INTack    : in  STD_LOGIC;
 		D         : in  STD_LOGIC_VECTOR (7 downto 0);
-		Dout      : out STD_LOGIC_VECTOR (7 downto 0):= (others=>'1');
-		M1_n      : in  STD_LOGIC;
-		IORQ_n    : in  STD_LOGIC;
-		RD_n      : in  STD_LOGIC;
-		WR_n      : in  STD_LOGIC;
+		WE        : in  STD_LOGIC;
 
 		RED       : out STD_LOGIC_VECTOR(1 downto 0);
 		GREEN     : out STD_LOGIC_VECTOR(1 downto 0);
 		BLUE      : out STD_LOGIC_VECTOR(1 downto 0);
-		HBLANK    : out STD_logic;
-		VBLANK    : out STD_logic;
-		HSYNC     : out STD_logic;
-		VSYNC     : out STD_logic
+		HBLANK    : out STD_LOGIC;
+		VBLANK    : out STD_LOGIC;
+		HSYNC     : out STD_LOGIC;
+		VSYNC     : out STD_LOGIC
 	);
-end Amstrad_ASIC;
+end Amstrad_GA;
 
-architecture Behavioral of Amstrad_ASIC is
+architecture Behavioral of Amstrad_GA is
 
-	-- init values are for test bench javacpc ! + Grimware
-	signal RHtot:std_logic_vector(7 downto 0):="00111111";
-	signal RHdisp:std_logic_vector(7 downto 0):="00101000";
-	signal RHsyncpos:std_logic_vector(7 downto 0):="00101110";
-	signal RHwidth:std_logic_vector(3 downto 0):="1110";
-	signal RVwidth:std_logic_vector(3 downto 0):="1000";
-	signal RVtot:std_logic_vector(7 downto 0):="00100110";
-	signal RVtotAdjust:std_logic_vector(7 downto 0):="00000000";
-	signal RVdisp:std_logic_vector(7 downto 0):="00011001";
-	signal RVsyncpos:std_logic_vector(7 downto 0):="00011110";
-	signal RRmax:std_logic_vector(7 downto 0);
-	signal RRmax9:std_logic_vector(7 downto 0):="00000111";
-	
-	signal Skew:std_logic_vector(1 downto 0):="00";
-	signal interlaceVideo:std_logic:='0';
-	signal interlace:std_logic:='0';
-	signal scanAdd:std_logic_vector(7 downto 0):=x"01";
-	signal halfR0:std_logic_vector(7 downto 0):="00100000"; --(RHTot+1)/2
-
-	-- check RVtot*RRmax=38*7=266>200 => 39*8=312 ! 38*8=304 304/52=5.84 ! 38*7=266=5.11
-	--       ? RVsyncpos*RRmax=30*7=210, 266-210=56 (NB_HSYNC_BY_INTERRUPT=52) 30*8=240 312-240=72
-	-- NB_HSYNC_BY_INTERRUPT*6=52*6=312
-	
-	-- Grimware A PAL 50Hz video-frame on the Amstrad is 312 rasterlines. 
-	-- Grimware screenshoot :
-	--R0 RHtot     =63 : 0..63                            (donc 64 pas)
-	--R1 RHdisp    =40 : 0..39 si HCC=R1 alors DISPEN=OFF (donc 40 pas)
-	--R2 RHsyncpos =46 : si HCC=R2 alors HSYNC=ON         (donc 46 pas
-	--R3 RHwidth   =14 : si (HCC-R2=)R3 alors HSYNC=OFF   (donc 60 pas
-	--R4 RVtot     =38 : 0..38                            (donc 39 pas)
-	--R6 RVdisp    =25 : 0..24 si VCC=R6 alors DISPEN=OFF (donc 25 pas
-	--R7 RVsyncpos =30 : si VCC=R7 alors VSYNC=ON         (donc 30 pas
-	--R3 RVwidth   =8  : VSYNC=OFF 
-	--R9 RRmax     =7  : 0..7                             (donc  8 pas)
-
-	--minus one : R0, R4, R9
-
-	-- arnold cpctest.asm :
-	-- crtc_default_values:
-	-- defb 63,40,46,&8e,38,0,25,30,0,7,0,0,&30,0,0,0,0
-	
-	--CRTC register 1 defines the width of the visible area in CRTC characters.
-	--The CPC display hardware fetches two bytes per CRTC character.
-	--Therefore the length of a CRTC scanline in bytes is (R1*2). (here : 40*2*8=640 pixels)
-	
-	--CRTC register 6 defines the height of the visible area in CRTC character lines.
-	--Therefore the total height of the visible area in CRTC scanlines is (R9+1)*R6 (here :(7+1)*25=200 pixels)
-	-- (RRmax+1)*RVdisp
-	
-	signal ADRESSE_maRegister:STD_LOGIC_VECTOR(13 downto 0):="110000" & "00000000";--(others=>'0');
-	signal LineCounter_is0:boolean:=true;
-	signal vsync_int:std_logic;
-	signal hsync_int:std_logic;
 	signal vsync_azrael:std_logic;
 	signal hsync_azrael:std_logic;
 	
@@ -219,134 +154,76 @@ architecture Behavioral of Amstrad_ASIC is
 	signal MODE_select: STD_LOGIC_VECTOR (1 downto 0);
 	signal newMode:STD_LOGIC_VECTOR (1 downto 0);
 	
-	-- action aZRaEL : disp !
-	signal vde : std_logic;
-
-	signal IO_ACK   : std_logic;
-	signal IO_REQ_W, old_REQ_W, IO_W : std_logic;
-	signal IO_REQ_R : std_logic;
-	
 	signal phase1MHz : std_logic_vector(1 downto 0);
-	signal phase0 : std_logic;
-
-	signal DI_r:std_logic_vector(7 downto 0);
 
 begin
 
-	IO_ACK  <= not M1_n and not IORQ_n;
-	IO_REQ_R<= not RD_n and not IORQ_n;
-	IO_REQ_W<= not WR_n and not IORQ_n;
-
-	old_REQ_W <= IO_REQ_W when rising_edge(CLK);
-
-	-- Strobed IO R/W
-	IO_W <= not old_REQ_W and IO_REQ_W;
-
-	process(reset,CLK) is
-		variable ink:STD_LOGIC_VECTOR(3 downto 0);
-		variable border_ink:STD_LOGIC;
-		variable ink_color:STD_LOGIC_VECTOR(4 downto 0);
-		variable c_border:integer range 0 to 31;
-		variable c_inkc:integer range 0 to 31;
-		variable c_ink:STD_LOGIC_VECTOR(3 downto 0);
-	begin
-		if reset='1' then
-			MODE_select<="00";
-		elsif rising_edge(CLK) then
-			if CE_4 = '1' and phase1MHz = "00" and IO_REQ_W='1' and A15_A14_A9_A8(3 downto 2) = "01" then --7Fxx gate array --
-				if D(7 downto 6) ="10" then
-					--http://www.cpctech.org.uk/docs/garray.html
-					if D(1 downto 0)="11" then
-						MODE_select<="00";
+process(reset,CLK) is
+	variable ink:STD_LOGIC_VECTOR(3 downto 0);
+	variable border_ink:STD_LOGIC;
+	variable ink_color:STD_LOGIC_VECTOR(4 downto 0);
+	variable c_border:integer range 0 to 31;
+	variable c_inkc:integer range 0 to 31;
+	variable c_ink:STD_LOGIC_VECTOR(3 downto 0);
+begin
+	if reset='1' then
+		MODE_select<="00";
+	elsif rising_edge(CLK) then
+		if CE_4 = '1' and phase1MHz = "00" and WE='1' then --7Fxx gate array --
+			if D(7 downto 6) ="10" then
+				--http://www.cpctech.org.uk/docs/garray.html
+				if D(1 downto 0)="11" then
+					MODE_select<="00";
+				else
+					MODE_select<=D(1 downto 0);
+				end if;
+			elsif D(7) ='0' then
+				-- palette
+				if D(6)='0' then
+					border_ink:=D(4);
+					ink:=D(3 downto 0);
+				else
+					ink_color:=D(4 downto 0);
+					if border_ink='0' then
+						c_inkc :=conv_integer(ink_color);
+						c_ink  := ink;
 					else
-						MODE_select<=D(1 downto 0);
-					end if;
-				elsif D(7) ='0' then
-					-- palette
-					if D(6)='0' then
-						border_ink:=D(4);
-						ink:=D(3 downto 0);
-					else
-						ink_color:=D(4 downto 0);
-						if border_ink='0' then
-							c_inkc :=conv_integer(ink_color);
-							c_ink  := ink;
-						else
-							c_border := conv_integer(ink_color);
-						end if;
+						c_border := conv_integer(ink_color);
 					end if;
 				end if;
 			end if;
-			
-			if CE_4 = '1' and phase1MHz = "10" then
-				pen(conv_integer(c_ink)) <= c_inkc;
-				border <= c_border;
-			end if;
-		end if;	
-	end process;
-
-	phase1MHz <= phase1MHz + ('0' & CE_4) when rising_edge(CLK);
-	phase0 <= not phase1MHz(1) and not phase1MHz(0);
-	cyc1MHz <= phase0;
-
-	DI_r <= x"FF" when RD_n='0' else D;
-
-	crtc : entity work.UM6845
-	port map
-	(
-		CLOCK  => CLK,
-		CLKEN  => phase0 and CE_4,
-		nRESET => not reset,
-		CRTC_TYPE => crtc_type,
-
-		ENABLE => IO_W or IO_REQ_R,
-		nCS    => A15_A14_A9_A8(2),
-		R_nW   => A15_A14_A9_A8(1),
-		RS     => A15_A14_A9_A8(0),
-		DI     => DI_r,
-		DO     => Dout,
+		end if;
 		
-		VSYNC => vsync_int,
-		HSYNC => hsync_int,
-		DE    => VDE,
-		LPSTB => '0',
+		if CE_4 = '1' and phase1MHz = "10" then
+			pen(conv_integer(c_ink)) <= c_inkc;
+			border <= c_border;
+		end if;
+	end if;	
+end process;
 
-		MA(9 downto 0)  => crtc_A(9 downto 0),
-		MA(11 downto 10)=> open,
-		RA(2 downto 0)  => crtc_A(12 downto 10),
-		MA(4 downto 3)  => open,
-		MA(13 downto 12)=> crtc_A(14 downto 13)
-	);
-	
-	crtc_VSYNC <= vsync_int;
+phase1MHz <= phase1MHz + ('0' & CE_4) when rising_edge(CLK);
+cyc1MHz <= not phase1MHz(1) and not phase1MHz(0);
 
 Markus_interrupt_process: process(reset,CLK) is
 	variable InterruptLineCount : std_logic_vector(5 downto 0):=(others=>'0'); -- a 6-bit counter, reset state is 0
 	variable InterruptSyncCount:integer range 0 to 2:=2;
-	variable etat_hsync_old : STD_LOGIC:='0';
-	variable etat_vsync_old : STD_LOGIC:='0';
+	variable old_hsync : STD_LOGIC:='0';
+	variable old_vsync : STD_LOGIC:='0';
 	--variable IO_ACK_old : STD_LOGIC:='0';
 	variable newMode_mem : STD_LOGIC_VECTOR(1 downto 0);
 begin
 	if reset='1' then
 		InterruptLineCount:=(others=>'0');
 		InterruptSyncCount:=2;
-		--IO_ACK_old:='0';
-		etat_hsync_old:='0';
-		etat_vsync_old:='0';
+
+		old_hsync:='0';
+		old_vsync:='0';
 		int<='0';
-		--crtc_VSYNC<='0';
-		
-		--etat_hsync:='0';
-		--monitor_hsync:=(others=>'0');
-		--etat_vsync:='0';
-		--monitor_vsync:=(others=>'0');
 		
 	--it's Z80 time !
 	elsif rising_edge(CLK) then
 
-		-- no IO_ACK_old => CPCTEST ok
-		if IO_ACK='1' then --and IO_ACK_old='0' then
+		if INTack='1' then --and IO_ACK_old='0' then
 			--the Gate Array will reset bit5 of the counter
 			--Once the Z80 acknowledges the interrupt, the GA clears bit 5 of the scan line counter.
 			-- When the interrupt is acknowledged, this is sensed by the Gate-Array. The top bit (bit 5), of the counter is set to "0" and the interrupt request is cleared. This prevents the next interrupt from occuring closer than 32 HSYNCs time. http://cpctech.cpc-live.com/docs/ints.html
@@ -361,7 +238,7 @@ begin
 	
 		-- InterruptLineCount begin
 		--http://www.cpcwiki.eu/index.php/Synchronising_with_the_CRTC_and_display
-		if IO_W='1' and A15_A14_A9_A8(3) = '0' and A15_A14_A9_A8(2) = '1' then
+		if WE='1' then
 			if D(7) ='0' then
 				-- ink -- osef
 			else
@@ -382,7 +259,7 @@ begin
 
 		--The GA has a counter that increments on every falling edge of the CRTC generated HSYNC signal.
 		--hSyncEnd()
-		if etat_hsync_old='1' and hsync_int='0' then
+		if old_hsync='1' and crtc_hs='0' then
 			-- It triggers 6 interrupts per frame http://pushnpop.net/topic-452-1.html
 			-- JavaCPC interrupt style...
 			--if (++InterruptLineCount == 52) {
@@ -416,7 +293,7 @@ begin
 		end if;
 		
 		--vSyncStart()
-		if vsync_int='1' and etat_vsync_old='0' then
+		if crtc_vs='1' and old_vsync='0' then
 			--A VSYNC triggers a delay action of 2 HSYNCs in the GA
 			--In both cases the following interrupt requests are synchronised with the VSYNC. 
 			-- JavaCPC
@@ -425,8 +302,8 @@ begin
 		end if;
 		-- InterruptLineCount end
 		
-		etat_hsync_old:=hsync_int;
-		etat_vsync_old:=vsync_int;
+		old_hsync:=crtc_hs;
+		old_vsync:=crtc_vs;
 	end if;
 end process Markus_interrupt_process;
 	
@@ -448,36 +325,36 @@ begin
 
 			monitor_hsync:=monitor_hsync(2 downto 0) & monitor_hsync(0);
 
-			if old_hsync = '0' and hsync_int = '1' then
+			if old_hsync = '0' and crtc_hs = '1' then
 				hSyncCount:= x"0";
 				monitor_hsync(0):='1';
-			elsif old_hsync = '1' and hsync_int = '0' then
+			elsif old_hsync = '1' and crtc_hs = '0' then
 				monitor_hsync:="0000";
-			elsif hsync_int = '1' then
+			elsif crtc_hs = '1' then
 				hSyncCount:=hSyncCount+1;
 				if hSyncCount=1+4 then
 					monitor_hsync:="0000";
 				end if;
 			end if;
 			
-			if old_hsync = '0' and hsync_int = '1' then
+			if old_hsync = '0' and crtc_hs = '1' then
 				monitor_vsync:=monitor_vsync(2 downto 0) & monitor_vsync(0);
-				if old_vsync = '0' and vsync_int = '1' then
+				if old_vsync = '0' and crtc_vs = '1' then
 					vSyncCount:= x"0";
 					monitor_vsync(0):='1';
-				elsif old_vsync = '1' and vsync_int = '0' then
+				elsif old_vsync = '1' and crtc_vs = '0' then
 					monitor_vsync:="0000";
-				elsif vsync_int='1' then
+				elsif crtc_vs='1' then
 					vSyncCount:=vSyncCount+1;
 					if vSyncCount=2+2 then
 						monitor_vsync:="0000";
 					end if;
 				end if;
 				
-				old_vsync := vsync_int;
+				old_vsync := crtc_vs;
 			end if;
 
-			old_hsync := hsync_int;
+			old_hsync := crtc_hs;
 
 			monitor_vhsync:=monitor_vhsync(2 downto 0) & monitor_vsync(2);
 
@@ -535,12 +412,12 @@ begin
 			if CE_4='1' then
 				if phase1MHz = "10" then
 					compteur1MHz_16:=0;
-					vde_mem:=vde;
-					DATA_mem:=crtc_D(7 downto 0);
-					vsync_mem:=not(vsync_azrael); --not(vsync_int);
-					hsync_mem:=not(hsync_azrael); --not(hsync_int);
+					vde_mem:=crtc_de;
+					DATA_mem:=vram_D(7 downto 0);
+					vsync_mem:=not(vsync_azrael); --not(crtc_vs);
+					hsync_mem:=not(hsync_azrael); --not(crtc_hs);
 				elsif phase1MHz = "00" then
-					DATA_mem:=crtc_D(15 downto 8);
+					DATA_mem:=vram_D(15 downto 8);
 				end if;
 			end if;
 

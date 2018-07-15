@@ -21,6 +21,44 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.std_logic_arith.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
+-- check RVtot*RRmax=38*7=266>200 => 39*8=312 ! 38*8=304 304/52=5.84 ! 38*7=266=5.11
+--       ? RVsyncpos*RRmax=30*7=210, 266-210=56 (NB_HSYNC_BY_INTERRUPT=52) 30*8=240 312-240=72
+-- NB_HSYNC_BY_INTERRUPT*6=52*6=312
+
+-- Grimware A PAL 50Hz video-frame on the Amstrad is 312 rasterlines. 
+-- Grimware screenshoot :
+--R0 RHtot     =63 : 0..63                            (donc 64 pas)
+--R1 RHdisp    =40 : 0..39 si HCC=R1 alors DISPEN=OFF (donc 40 pas)
+--R2 RHsyncpos =46 : si HCC=R2 alors HSYNC=ON         (donc 46 pas
+--R3 RHwidth   =14 : si (HCC-R2=)R3 alors HSYNC=OFF   (donc 60 pas
+--R4 RVtot     =38 : 0..38                            (donc 39 pas)
+--R6 RVdisp    =25 : 0..24 si VCC=R6 alors DISPEN=OFF (donc 25 pas
+--R7 RVsyncpos =30 : si VCC=R7 alors VSYNC=ON         (donc 30 pas
+--R3 RVwidth   =8  : VSYNC=OFF 
+--R9 RRmax     =7  : 0..7                             (donc  8 pas)
+
+--minus one : R0, R4, R9
+
+-- arnold cpctest.asm :
+-- vram_Default_values:
+-- defb 63,40,46,&8e,38,0,25,30,0,7,0,0,&30,0,0,0,0
+
+--CRTC register 1 defines the width of the visible area in CRTC characters.
+--The CPC display hardware fetches two bytes per CRTC character.
+--Therefore the length of a CRTC scanline in bytes is (R1*2). (here : 40*2*8=640 pixels)
+
+--CRTC register 6 defines the height of the visible area in CRTC character lines.
+--Therefore the total height of the visible area in CRTC scanlines is (R9+1)*R6 (here :(7+1)*25=200 pixels)
+-- (RRmax+1)*RVdisp
+	
+-- Being clear about address/data :
+-- 12/13 : ADRESSE_maRegister update, upper to 9 isn't used
+-- 0 1 2 3 do run setEvents => strange it seems about HORIZONTALS
+-- 7 seem making effects if its value is 0 but it seems a source code erratum
+-- 3 does call setReg3(value) which rules under hsyncWidth and vsyncWidth
+-- 6 does call setReg6() with some border effect on a demo
+-- 8 does call setReg8(value) interlace
+
 entity UM6845 is
 port (
 	CLOCK		:	in  std_logic;
@@ -491,20 +529,18 @@ begin
 			elsif (crtc_type='1' and hCC = RHdisp) or (crtc_type='0' and hCC=RHdisp+Skew) then
 				dispH_skew0:='0';
 				
-					--if ((getRA() | interlaceVideo) == maxRaster) {
-					if (RasterCounter or "0000000" & interlaceVideo)=RRMax then
-						if crtc_type='1' then
-							--maStore = (maStore + reg[1]) & 0x3fff;
-							--0x3fff est ok : ADRESSE_maStore_mem(13:0)
-							ADRESSE_maStore_mem:=ADRESSE_maStore_mem+RHDisp;
-						else
-							--if (CRTC_InternalState.HCount == CRTC_InternalState.HEnd) -- c'est HDisp ce HEnd en fait...
-							--CRTC_InternalState.MAStore = CRTC_InternalState.MALine + CRTC_InternalState.HCount;
-							ADRESSE_maStore_mem:=ADRESSE_maStore_mem + RHDisp + Skew;
-						end if;
+				--if ((getRA() | interlaceVideo) == maxRaster) {
+				if (RasterCounter or "0000000" & interlaceVideo)=RRMax then
+					if crtc_type='1' then
+						--maStore = (maStore + reg[1]) & 0x3fff;
+						--0x3fff est ok : ADRESSE_maStore_mem(13:0)
+						ADRESSE_maStore_mem:=ADRESSE_maStore_mem+RHDisp;
+					else
+						--if (CRTC_InternalState.HCount == CRTC_InternalState.HEnd) -- c'est HDisp ce HEnd en fait...
+						--CRTC_InternalState.MAStore = CRTC_InternalState.MALine + CRTC_InternalState.HCount;
+						ADRESSE_maStore_mem:=ADRESSE_maStore_mem + RHDisp + Skew;
 					end if;
-
-				
+				end if;
 			end if;
 			
 			if crtc_type='0' then
