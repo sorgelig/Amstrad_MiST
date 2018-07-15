@@ -215,8 +215,8 @@ wire  [7:0] sdram_dout;
 wire  [7:0] ram_din;
 wire  [7:0] ram_dout = mf2_ram_en ? mf2_ram_out : sdram_dout;
 
-wire  [7:0] vram_dout;
-wire [15:0] vram_addr;
+wire [15:0] vram_dout;
+wire [14:0] vram_addr;
 
 assign SDRAM_CLK = clk_sys;
 
@@ -235,7 +235,7 @@ sdram sdram
 	.din (reset ? boot_dout : ram_din),
 	.dout(sdram_dout),
 
-	.vram_addr({2'b10,vram_addr}),
+	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout)
 );
 

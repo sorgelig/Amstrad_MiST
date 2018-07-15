@@ -45,8 +45,8 @@ module Amstrad_motherboard
 	output        hsync,
 	output        vsync,
 
-	input   [7:0] vram_din,
-	output [15:0] vram_addr,
+	input  [15:0] vram_din,
+	output [14:0] vram_addr,
 
 	input         ram64k,
 	output [22:0] mem_addr,
