@@ -28,11 +28,11 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 -- Grimware A PAL 50Hz video-frame on the Amstrad is 312 rasterlines. 
 -- Grimware screenshoot :
 --R0 RHtot     =63 : 0..63                            (donc 64 pas)
---R1 RHdisp    =40 : 0..39 si HCC=R1 alors DISPEN=OFF (donc 40 pas)
+--R1 RHDisp    =40 : 0..39 si HCC=R1 alors DISPEN=OFF (donc 40 pas)
 --R2 RHsyncpos =46 : si HCC=R2 alors HSYNC=ON         (donc 46 pas
 --R3 RHwidth   =14 : si (HCC-R2=)R3 alors HSYNC=OFF   (donc 60 pas
 --R4 RVtot     =38 : 0..38                            (donc 39 pas)
---R6 RVdisp    =25 : 0..24 si VCC=R6 alors DISPEN=OFF (donc 25 pas
+--R6 RVDisp    =25 : 0..24 si VCC=R6 alors DISPEN=OFF (donc 25 pas
 --R7 RVsyncpos =30 : si VCC=R7 alors VSYNC=ON         (donc 30 pas
 --R3 RVwidth   =8  : VSYNC=OFF 
 --R9 RRmax     =7  : 0..7                             (donc  8 pas)
@@ -49,7 +49,7 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 --CRTC register 6 defines the height of the visible area in CRTC character lines.
 --Therefore the total height of the visible area in CRTC scanlines is (R9+1)*R6 (here :(7+1)*25=200 pixels)
--- (RRmax+1)*RVdisp
+-- (RRmax+1)*RVDisp
 	
 -- Being clear about address/data :
 -- 12/13 : ADRESSE_maRegister update, upper to 9 isn't used
@@ -64,7 +64,7 @@ port (
 	CLOCK		:	in  std_logic;
 	CLKEN		:	in  std_logic;
 	nRESET	:	in  std_logic;
-	CRTC_TYPE:	in  std_logic;
+	crtc_type:	in  std_logic;
 
 	-- Bus interface
 	ENABLE	:	in  std_logic;
@@ -91,13 +91,13 @@ architecture rtl of UM6845 is
 
 	-- init values are for test bench javacpc ! + Grimware
 	signal RHtot:std_logic_vector(7 downto 0):="00111111";
-	signal RHdisp:std_logic_vector(7 downto 0):="00101000";
+	signal RHDisp:std_logic_vector(7 downto 0):="00101000";
 	signal RHsyncpos:std_logic_vector(7 downto 0):="00101110";
 	signal RHwidth:std_logic_vector(3 downto 0):="1110";
 	signal RVwidth:std_logic_vector(3 downto 0):="1000";
 	signal RVtot:std_logic_vector(7 downto 0):="00100110";
 	signal RVtotAdjust:std_logic_vector(7 downto 0):="00000000";
-	signal RVdisp:std_logic_vector(7 downto 0):="00011001";
+	signal RVDisp:std_logic_vector(7 downto 0):="00011001";
 	signal RVsyncpos:std_logic_vector(7 downto 0):="00011110";
 	signal RRmax:std_logic_vector(7 downto 0);
 	signal RRmax9:std_logic_vector(7 downto 0):="00000111";
@@ -125,13 +125,13 @@ begin
 	if nRESET='0' then
 		DO<=(others=>'1');
 		RHtot <="00111111";
-		RHdisp <="00101000";
+		RHDisp <="00101000";
 		RHsyncpos <="00101110";
 		RHwidth <="1110";
 		RVwidth <="1000";
 		RVtot <="00100110";
 		RVtotAdjust <="00000000";
-		RVdisp <="00011001";
+		RVDisp <="00011001";
 		RVsyncpos <="00011110";
 		RRmax9 <="00000111";
 		Skew <="00";
@@ -181,7 +181,7 @@ begin
 							halfR0_mem:=registres(0)+1;
 							halfR0<="0" & halfR0_mem(7 downto 1);
 						when 1=>
-							RHdisp<=registres(1);
+							RHDisp<=registres(1);
 						when 2=>
 							RHsyncpos<=registres(2);
 						when 3=>
@@ -219,7 +219,7 @@ begin
 							RVtotAdjust<=registres(5) and x"1f";
 						when 6=>
 							--The DISPTMG (Activation du split-border) can be forced using R8 (DISPTMG Skew) on type 0,3 and 4 or by setting R6=0 on type 1.
-							RVdisp<=registres(6) and x"7f";
+							RVDisp<=registres(6) and x"7f";
 						when 7=>
 							RVsyncpos<=registres(7) and x"7f";
 						when 8=>-- and x"f3"; and x"03" (type 1)
@@ -526,7 +526,7 @@ begin
 			elsif hCC = 0 then -- and LineCounter<RVDisp*(RRmax+1) then
 				dispH_skew0:='1';
 				--hDispStart() (redondance avec hCC=RHtot (hCC:=0) !) : donc ne rien faire ici...
-			elsif (crtc_type='1' and hCC = RHdisp) or (crtc_type='0' and hCC=RHdisp+Skew) then
+			elsif (crtc_type='1' and hCC = RHDisp) or (crtc_type='0' and hCC=RHDisp+Skew) then
 				dispH_skew0:='0';
 				
 				--if ((getRA() | interlaceVideo) == maxRaster) {

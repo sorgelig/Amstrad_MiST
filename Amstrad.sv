@@ -59,8 +59,8 @@ localparam CONF_STR = {
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
 	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
-	"O2,CRTC,1,0;",
-	"O3,CPU timings,Original,Fast;",
+	"O23,CRTC,Type 1(new),Type 0(new),Type 1(old),Type 0(old);",
+	"O6,CPU timings,Original,Fast;",
 	"T0,Reset & apply model;"
 };
 
@@ -394,8 +394,6 @@ end
 
 /////////////////////////////////////////////////////////////////////////
 
-wire  [3:0] ppi_jumpers = {2'b11, ~status[5], 1'b1};
-wire        crtc_type = ~status[2];
 wire [15:0] cpu_addr;
 wire  [7:0] io_dout;
 wire        m1, key_nmi, NMI;
@@ -411,9 +409,10 @@ Amstrad_motherboard motherboard
 
 	.ps2_key(ps2_key),
 
-	.no_wait(status[3]),
-	.ppi_jumpers(ppi_jumpers),
-	.crtc_type(crtc_type),
+	.no_wait(status[6]),
+	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
+	.crtc_type(~status[2]),
+	.crtc_module(status[3]),
 
 	.joy1(joy1),
 	.joy2(joy2),

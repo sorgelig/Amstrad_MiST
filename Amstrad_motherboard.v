@@ -31,6 +31,7 @@ module Amstrad_motherboard
 
 	input   [3:0] ppi_jumpers,
 	input         crtc_type,
+	input         crtc_module, // 0 - new, 1 - old
 	input         no_wait,
 
 	output  [7:0] audio_l,
@@ -127,11 +128,18 @@ always @(posedge clk) begin
 	end
 end
 
-wire crtc_hs, crtc_vs, crtc_de;
-wire [13:0] MA;
-wire  [4:0] RA;
-wire  [7:0] crtc_dout;
-UM6845 CRTC
+wire crtc_hs = crtc_module ? crtc_hs_1 : crtc_hs_2;
+wire crtc_vs = crtc_module ? crtc_vs_1 : crtc_vs_2;
+wire crtc_de = crtc_module ? crtc_de_1 : crtc_de_2;
+wire [13:0] MA = crtc_module ? MA_1 : MA_2;
+wire  [4:0] RA = crtc_module ? RA_1 : RA_2;
+wire  [7:0] crtc_dout = crtc_module ? crtc_dout_1 : crtc_dout_1;
+
+wire crtc_hs_1, crtc_vs_1, crtc_de_1;
+wire [13:0] MA_1;
+wire  [4:0] RA_1;
+wire  [7:0] crtc_dout_1;
+UM6845 CRTC_1
 (
 	.CLOCK(clk),
 	.CLKEN(cyc1MHz & ce_4p),
@@ -143,15 +151,42 @@ UM6845 CRTC
 	.R_nW(A[9]),
 	.RS(A[8]),
 	.DI(~RD_n ? 8'hFF : D),
-	.DO(crtc_dout),
+	.DO(crtc_dout_1),
 
-	.VSYNC(crtc_vs),
-	.HSYNC(crtc_hs),
-	.DE(crtc_de),
+	.VSYNC(crtc_vs_1),
+	.HSYNC(crtc_hs_1),
+	.DE(crtc_de_1),
 	.LPSTB(0),
 
-	.MA(MA),
-	.RA(RA)
+	.MA(MA_1),
+	.RA(RA_1)
+);
+
+wire crtc_hs_2, crtc_vs_2, crtc_de_2;
+wire [13:0] MA_2;
+wire  [4:0] RA_2;
+wire  [7:0] crtc_dout_2;
+MC6845 CRTC_2
+(
+	.CLOCK(clk),
+	.CLKEN(cyc1MHz & ce_4p),
+	.nRESET(~reset),
+	.CRTC_TYPE(crtc_type),
+
+	.ENABLE(io_rd | io_wr),
+	.nCS(A[14]),
+	.R_nW(A[9]),
+	.RS(A[8]),
+	.DI(~RD_n ? 8'hFF : D),
+	.DO(crtc_dout_2),
+
+	.VSYNC(crtc_vs_2),
+	.HSYNC(crtc_hs_2),
+	.DE(crtc_de_2),
+	.LPSTB(0),
+
+	.MA(MA_2),
+	.RA(RA_2)
 );
 
 wire cyc1MHz;
