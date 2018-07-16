@@ -145,13 +145,9 @@ reg [3:0]     v_sync_counter;
 reg [4:0]     field_counter;
 
 //  Internal signals
-wire          h_sync_start;
-wire          v_sync_start;
 reg           h_display;
-wire          h_display_early;
 reg           hs;
 reg           v_display;
-wire          v_display_early;
 reg           vs;
 reg           odd_field;
 reg [13:0]    ma_i;
@@ -265,7 +261,7 @@ always @(posedge CLOCK) begin
 						05: r05_v_total_adj <= DI[4:0];
 						06: r06_v_displayed <= DI[6:0];
 						07: r07_v_sync_pos <= DI[6:0];
-						08: r08_interlace <= DI[7:0];
+						08: r08_interlace <= 0; //DI[7:0];
 						09: r09_max_scan_line <= DI[4:0];
 						10: begin
 								r10_cursor_mode <= DI[6:5];
@@ -288,7 +284,7 @@ end
 
 //  registers
 always @(posedge CLOCK) begin
-	reg [7:0] h_displayed_capt;
+	reg [13:0] ma_next_start;
 
 	if (~nRESET) begin
 
@@ -367,7 +363,7 @@ always @(posedge CLOCK) begin
 				line_counter <= 0;
 				// On all other character rows within the field the row start address is
 				// increased by h_displayed and the row counter is incremented
-				ma_row_start = ma_row_start + h_displayed_capt;
+				ma_row_start = ma_next_start;
 				row_counter <= row_counter + 1'd1;
 				// Test if we are entering the adjust phase, and set
 				// in_adj accordingly
@@ -388,7 +384,7 @@ always @(posedge CLOCK) begin
 			//  Memory address preset to row start at the beginning of each
 			//  scan line
 			ma_i <= ma_row_start;
-		h_displayed_capt <= 0;
+			ma_next_start <= ma_row_start;
 		end
 		else begin
 			// Increment horizontal counter
@@ -398,29 +394,13 @@ always @(posedge CLOCK) begin
 			ma_i <= ma_i + 1'd1;
 
 			// ma_row_start won't be updated if h_displayed is not reached!
-			if((h_counter + 1'd1) == r01_h_displayed) h_displayed_capt <= r01_h_displayed;
+			if((h_counter + 1'd1) == r01_h_displayed) ma_next_start <= ma_row_start + r01_h_displayed;
 		end
 	end
 end
 
-//  Signals to mark hsync and half way points for generating
-//  vsync in even and odd fields
-
-//  Horizontal, vertical and address counters
-
-assign h_sync_start = h_counter == r02_h_sync_pos;
-assign h_display_early = (h_counter < r01_h_displayed);
-assign v_display_early = (row_counter < r06_v_displayed);
-
-// dmb: measurements on a real beeb confirm this is the actual
-// 6845 behaviour. i.e. in non-interlaced mode the start of vsync
-// coinscides with the start of the active display, and in intelaced
-// mode the vsync of the odd field is delayed by half a scan line
-assign v_sync_start = (~odd_field & (h_counter == 0)) |
-							 ( odd_field & (h_counter == {1'b0, r00_h_total[7:1]}));
 
 //  Video timing and sync counters
-
 always @(posedge CLOCK) begin
 
 	if (~nRESET) begin
@@ -438,10 +418,11 @@ always @(posedge CLOCK) begin
 	else if (CLKEN) begin
 
 		//  Horizontal active video
-		h_display <= h_display_early;
+		if(h_counter == 0) h_display <= 1;
+		if(h_counter == r01_h_displayed) h_display <= 0;
 
 		//  Horizontal sync
-		if (h_sync_start | hs) begin
+		if ((h_counter == r02_h_sync_pos) || hs) begin
 
 			//  In horizontal sync
 			hs <= 1;
@@ -459,11 +440,12 @@ always @(posedge CLOCK) begin
 		end
 
 		//  Vertical active video
-		v_display <= v_display_early;
+		if(row_counter == 0) v_display <= 1;
+		if(row_counter == r06_v_displayed) v_display <= 0;
 
 		//  Vertical sync occurs either at the same time as the horizontal sync (even fields)
 		//  or half a line later (odd fields)
-		if (v_sync_start) begin
+		if ((~odd_field & (h_counter == 0)) | (odd_field & (h_counter == {1'b0, r00_h_total[7:1]}))) begin
 			if (((row_counter == r07_v_sync_pos) & (line_counter == 0)) | vs) begin
 				//  In vertical sync
 				vs <= 1;
@@ -516,7 +498,7 @@ always @(posedge CLOCK) begin
 		cursor_line = 0;
 	end
 	else if (CLKEN) begin
-		if (h_display_early & v_display_early & (ma_i == {r14_cursor_h, r15_cursor_l})) begin
+		if ((h_counter < r01_h_displayed) & (row_counter < r06_v_displayed) & (ma_i == {r14_cursor_h, r15_cursor_l})) begin
 			if (line_counter == 0) begin
 
 				//  Suppress wrap around if last line is > max scan line
