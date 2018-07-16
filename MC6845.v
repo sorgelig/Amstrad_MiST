@@ -55,11 +55,11 @@
 // 
 // CPC Adaptation
 //
-// Split/implement Type 0/1 specific behavior
-// 
+// Fix, Split, Implement Type 0/1 specific quirks
+//
 // (C) 2018 Sorgelig
-// 
-//  
+//
+//
 
 module MC6845
 (
