@@ -177,7 +177,6 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 );
 
 wire        rom_download = !ioctl_index & ioctl_download;
-wire        reset = status[0] | buttons[1] | rom_download;
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
@@ -251,7 +250,12 @@ always_comb begin
 end
 
 reg model = 0;
-always @(posedge clk_sys) if(reset) model <= status[4];
+reg reset;
+
+always @(posedge clk_sys) begin
+	if(reset) model <= status[4];
+	reset <= status[0] | buttons[1] | rom_download;
+end
 
 //////////////////////////////////////////////////////////////////////////
 
