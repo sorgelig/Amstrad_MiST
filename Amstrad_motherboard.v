@@ -37,7 +37,7 @@ module Amstrad_motherboard
 	output  [7:0] audio_l,
 	output  [7:0] audio_r,
 
-	output  [1:0] vmode,
+	output        ce_pix,
 	output  [1:0] red,
 	output  [1:0] green,
 	output  [1:0] blue,
@@ -211,7 +211,7 @@ Amstrad_GA GateArray
 
 	.INT(INT),
 
-	.VMODE(vmode),
+	.CE_PIX(ce_pix),
 	.RED(red),
 	.GREEN(green),
 	.BLUE(blue),

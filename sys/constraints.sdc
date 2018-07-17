@@ -35,8 +35,8 @@ set_multicycle_path -from {Amstrad_motherboard:motherboard|T80pa:CPU|*} -to [get
 # False paths
 
 # Don't bother optimizing Hq2x and sigma_delta_dac
-set_false_path -from {video_mixer:video_mixer|scandoubler:sd|Hq2x:Hq2x|*}
-set_false_path -to {video_mixer:video_mixer|scandoubler:sd|Hq2x:Hq2x|*}
+#set_false_path -from {video_mixer:video_mixer|scandoubler:sd|Hq2x:Hq2x|*}
+#set_false_path -to {video_mixer:video_mixer|scandoubler:sd|Hq2x:Hq2x|*}
 set_false_path -to {sigma_delta_dac:*}
 
 #set_false_path -to [get_ports {VGA_*}]
