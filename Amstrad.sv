@@ -66,15 +66,13 @@ localparam CONF_STR = {
 
 //////////////////////////////////////////////////////////////////////////
 
-wire clk_vid;
 wire clk_sys;
 wire locked;
 
 pll pll
 (
 	.inclk0(CLOCK_27),
-	.c0(clk_vid),
-	.c1(clk_sys),
+	.c0(clk_sys),
 	.locked(locked)
 );
 
@@ -88,13 +86,12 @@ always @(negedge clk_sys) begin
 	div     <= div + 1'd1;
 
 	ce_4n   <= (div == 8);
-
 	ce_4p   <= !div;
-	ce_u765 <= !div[2:0]; //8 MHz
 	ce_ref  <= !div;
 	ce_boot <= !div;
 
-	ce_16   <= !div[1:0];
+	ce_u765 <= !div[2:0]; //8 MHz
+	ce_16   <= !div[1:0]; //16 MHz
 end
 
 //////////////////////////////////////////////////////////////////////////
@@ -448,22 +445,14 @@ Amstrad_motherboard motherboard
 
 //////////////////////////////////////////////////////////////////////
 
-reg ce_pix;
-always @(posedge clk_vid) begin
-	reg old_ce1, old_ce2;
-
-	old_ce1 <= hq2x ? ce_pix_mb : ce_16;
-	old_ce2 <= old_ce1;
-
-	ce_pix <= ~old_ce2 & old_ce1;
-end
+wire ce_pix = hq2x ? ce_pix_mb : ce_16;
 
 wire [1:0] b, g, r;
 wire       hs, vs, hbl, vbl;
 
 color_mix color_mix
 (
-	.clk_vid(clk_vid),
+	.clk_vid(clk_sys),
 	.ce_pix(ce_pix),
 	.mono(status[13:11]),
 
@@ -489,7 +478,7 @@ wire       HS, VS, HBL, VBL;
 
 video_cleaner video_cleaner
 (
-	.clk_vid(clk_vid),
+	.clk_vid(clk_sys),
 	.ce_pix(ce_pix),
 
 	.B(mb),
@@ -520,7 +509,6 @@ video_mixer #(800) video_mixer
 (
 	.*,
 
-	.clk_sys(clk_vid),
 	.ce_pix_out(),
 
 	.scanlines({scale==3, scale==2}),
@@ -540,7 +528,7 @@ wire       MHS, MVS;
 
 osd osd
 (
-	.clk_sys(clk_vid),
+	.clk_sys(clk_sys),
 	.SPI_SCK(SPI_SCK),
 	.SPI_SS3(SPI_SS3),
 	.SPI_DI(SPI_DI),
