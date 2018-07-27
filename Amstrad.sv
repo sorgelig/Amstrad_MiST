@@ -407,6 +407,7 @@ Amstrad_motherboard motherboard
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
 	.crtc_module(status[3]),
+ 	.resync(1),
 
 	.joy1(joy1),
 	.joy2(joy2),
