@@ -57,7 +57,7 @@ localparam CONF_STR = {
 	"AMSTRAD;;",
 	"S,DSK,Mount Disk;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OBD,Colors,All,Mono-G,Mono-R,Mono-B,Mono-W;",
+	"OBD,Display,Color,Green,Amber,Cyan,White;",
 	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
 	"O23,CRTC,Type 1(new),Type 0(new),Type 1(old),Type 0(old);",
 	"O6,CPU timings,Original,Fast;",
