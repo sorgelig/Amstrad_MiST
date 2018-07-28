@@ -59,7 +59,7 @@ localparam CONF_STR = {
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color,Green,Amber,Cyan,White;",
 	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
-	"O23,CRTC,Type 1(new),Type 0(new),Type 1(old),Type 0(old);",
+	"O2,CRTC,Type 1,Type 0;",
 	"O6,CPU timings,Original,Fast;",
 	"T0,Reset & apply model;"
 };
@@ -406,7 +406,6 @@ Amstrad_motherboard motherboard
 	.no_wait(status[6]),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
 	.crtc_type(~status[2]),
-	.crtc_module(status[3]),
  	.resync(1),
 
 	.joy1(joy1),
