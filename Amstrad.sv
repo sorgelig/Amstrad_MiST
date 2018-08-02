@@ -117,8 +117,8 @@ wire  [7:0] ioctl_index;
 wire [10:0] ps2_key;
 
 wire  [1:0] buttons;
-wire  [5:0] joy1;
-wire  [5:0] joy2;
+wire  [6:0] joy1;
+wire  [6:0] joy2;
 wire [31:0] status;
 
 wire        scandoubler_disable;
