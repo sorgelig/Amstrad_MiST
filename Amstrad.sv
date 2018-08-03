@@ -57,7 +57,7 @@ localparam CONF_STR = {
 	"AMSTRAD;;",
 	"S,DSK,Mount Disk;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OBD,Display,Color,Green,Amber,Cyan,White;",
+	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
 	"O2,CRTC,Type 1,Type 0;",
 	"O6,CPU timings,Original,Fast;",
@@ -419,6 +419,7 @@ Amstrad_motherboard motherboard
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
+	.pal(|status[13:11]),
 	.ce_pix_fs(ce_pix_fs),
 	.hblank(hbl),
 	.vblank(vbl),
@@ -458,7 +459,7 @@ color_mix color_mix
 (
 	.clk_vid(clk_sys),
 	.ce_pix(ce_pix),
-	.mono(status[13:11]),
+	.mix(status[13:11]),
 
 	.HSync_in(hs),
 	.VSync_in(vs),
