@@ -61,7 +61,7 @@ localparam CONF_STR = {
 	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
 	"O2,CRTC,Type 1,Type 0;",
 	"O6,CPU timings,Original,Fast;",
-	"T0,Reset & apply model;"
+	"OG,FDD timings,Original,Fast;"
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -283,6 +283,8 @@ u765 u765
 
 	.clk_sys(clk_sys),
 	.ce(ce_u765),
+
+	.fast(status[16]),
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready), // & {motor,motor}),
