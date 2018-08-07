@@ -58,10 +58,13 @@ localparam CONF_STR = {
 	"S,DSK,Mount Disk;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
-	"O45,Model,Amstrad CPC 6128,Amstrad CPC 664,Schneider CPC 6128,Schneider CPC 664;",
 	"O2,CRTC,Type 1,Type 0;",
+	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O6,CPU timings,Original,Fast;",
-	"OG,FDD timings,Original,Fast;"
+	"OG,FDD timings,Original,Fast;",
+	"O5,Distributor,Amstrad,Schneider;",
+	"O4,Model,CPC 6128,CPC 664;",
+	"T0,Reset & apply model;"
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -357,11 +360,11 @@ always @(posedge clk_sys) begin
 
 	if (reset) begin
 		mf2_en <= 0;
-		mf2_hidden <= 0;
+		mf2_hidden <= |status[15:14];
 		NMI <= 0;
 	end
 
-	if(~old_key_nmi & key_nmi & ~mf2_en) NMI <= 1;
+	if(~old_key_nmi & key_nmi & ~mf2_en & ~status[15]) NMI <= 1;
 	if (NMI & ~old_m1 & m1 & (cpu_addr == 'h66)) begin
 		mf2_en <= 1;
 		mf2_hidden <= 0;
