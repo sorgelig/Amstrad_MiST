@@ -10,7 +10,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 * Selectable CPC 6128/664 mode with separate ROM sets.
 * Multiface 2.
 * Several monochrome modes and 2 types of palette (GA/ASIC).
-* (*) Selectable expansion ROM loading.
+* Selectable expansion ROM loading.
 * Joystick support with up to 3 buttons (2 on MiST)
 * Kempston, SYMBiFACE II and Multiplay mice.
 * HQ2x and Scanlines FX for scandoubler.
@@ -34,7 +34,7 @@ OS6128 + BASIC1.1 + AMSDOS + MF2 + OS664 + BASIC664 + AMSDOS + MF2
 
 Every part is 16KB. You can create your own ROM if you have a special preference.
 
-## Expansion ROM (MiSTer)
+## Expansion ROM
 Expansion ROM should have file extension .eXX, where XX is hex number 00-FF of ROM page to load.
 Every page is 16KB. It's possible to load larger ROM. In this case every 16KB block will be loaded in subsequent pages.
 

@@ -98,7 +98,8 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output reg  [7:0] ioctl_index,        // menu index used to upload the file
 	output reg        ioctl_wr = 0,
 	output reg [24:0] ioctl_addr,
-	output reg  [7:0] ioctl_dout
+	output reg  [7:0] ioctl_dout,
+	output reg [31:0] ioctl_file_ext
 );
 
 reg [7:0] but_sw;
@@ -444,6 +445,7 @@ reg        rclk   = 0;
 localparam UIO_FILE_TX      = 8'h53;
 localparam UIO_FILE_TX_DAT  = 8'h54;
 localparam UIO_FILE_INDEX   = 8'h55;
+localparam UIO_FILE_INFO    = 8'h56;
 
 reg        rdownload = 0;
 
@@ -452,9 +454,10 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 	reg  [6:0] sbuf;
 	reg  [7:0] cmd;
 	reg  [4:0] cnt;
+	reg  [7:0] bcnt;
 	reg [24:0] addr;
 
-	if(SPI_SS2) cnt <= 0;
+	if(SPI_SS2) {bcnt,cnt} <= 0;
 	else begin
 		// don't shift in last bit. It is evaluated directly
 		// when writing to ram
@@ -466,6 +469,14 @@ always@(posedge SPI_SCK, posedge SPI_SS2) begin
 
 		// finished command byte
       if(cnt == 7) cmd <= {sbuf, SPI_DI};
+
+		if((cmd == UIO_FILE_INFO) && (cnt == 15)) begin
+			if(~&bcnt) bcnt <= bcnt + 1'd1;
+			if(bcnt == 7)  ioctl_file_ext[31:24] <= ".";
+			if(bcnt == 8)  ioctl_file_ext[23:16] <= {sbuf, SPI_DI};
+			if(bcnt == 9)  ioctl_file_ext[15:8]  <= {sbuf, SPI_DI};
+			if(bcnt == 10) ioctl_file_ext[7:0]   <= {sbuf, SPI_DI};
+		end
 
 		// prepare/end transmission
 		if((cmd == UIO_FILE_TX) && (cnt == 15)) begin

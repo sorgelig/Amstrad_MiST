@@ -56,6 +56,7 @@ assign LED = ~mf2_en & ~ioctl_download;
 localparam CONF_STR = {
 	"AMSTRAD;;",
 	"S,DSK,Mount Disk;",
+	"F,E??,Load expansion;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O2,CRTC,Type 1,Type 0;",
@@ -116,6 +117,7 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
+wire [31:0] ioctl_file_ext;
 
 wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
@@ -167,15 +169,50 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_dout),
 	.ioctl_download(ioctl_download),
-	.ioctl_index(ioctl_index)
+	.ioctl_index(ioctl_index),
+	.ioctl_file_ext(ioctl_file_ext)
 );
 
-wire        rom_download = !ioctl_index & ioctl_download;
+wire        rom_download = ioctl_download;
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
+
+wire  [7:0] rom_mask = {8{(ram_a[22] & ~rom_map[map_addr])}};
+
+reg         rom_map[256] = '{default:0};
+reg   [7:0] map_addr;
+always @(posedge clk_sys) map_addr <= ram_a[21:14];
+
+reg [8:0] page = 0;
+always @(posedge clk_sys) begin
+	reg combo = 0;
+	reg old_download;
+	reg old_wr;      
+
+	old_wr <= ioctl_wr;
+	if(rom_download & old_wr & ~ioctl_wr) begin
+		if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
+		if(combo && &boot_a[13:0]) begin
+			combo <= 0;
+			page  <= 9'h1FF;
+		end
+	end
+
+	old_download <= ioctl_download;
+	if(~old_download & ioctl_download) begin
+		page <= 9'h1EE; // some unused page for malformed file extension
+		combo <= 0;
+		if(ioctl_file_ext[15:8] >= "0" && ioctl_file_ext[15:8] <= "9") page[7:4] <= ioctl_file_ext[11:8];
+		if(ioctl_file_ext[15:8] >= "A" && ioctl_file_ext[15:8] <= "F") page[7:4] <= ioctl_file_ext[11:8]+4'd9;
+		if(ioctl_file_ext[7:0]  >= "0" && ioctl_file_ext[7:0]  <= "9") page[3:0] <= ioctl_file_ext[3:0];
+		if(ioctl_file_ext[7:0]  >= "A" && ioctl_file_ext[7:0]  <= "F") page[3:0] <= ioctl_file_ext[3:0] +4'd9;
+		if(ioctl_file_ext[15:0] == "ZZ") page <= 0;
+		if(ioctl_file_ext[15:0] == "Z0") begin page <= 0; combo <= 1; end
+	end
+end
 
 always_comb begin
 	boot_wr = rom_download & ioctl_wr;
@@ -184,19 +221,26 @@ always_comb begin
 	boot_a[13:0] = ioctl_addr[13:0];
 	boot_a[22:14] = '1;
 
-	case(ioctl_addr[24:14])
-		   0,4: boot_a[22:14] = 9'h000;
-		   1,5: boot_a[22:14] = 9'h100;
-		   2,6: boot_a[22:14] = 9'h107;
-		   3,7: boot_a[22:14] = 9'h1ff; //MF2
-	  default: boot_wr = 0;
-	endcase
+	if(ioctl_index) begin
+		boot_a[22]    = page[8];
+		boot_a[21:14] = page[7:0] + ioctl_addr[21:14];
+		boot_bank     = model;
+	end
+	else begin
+		case(ioctl_addr[24:14])
+				0,4: boot_a[22:14] = 9'h000;
+				1,5: boot_a[22:14] = 9'h100;
+				2,6: boot_a[22:14] = 9'h107;
+				3,7: boot_a[22:14] = 9'h1ff; //MF2
+		  default: boot_wr = 0;
+		endcase
 
-	case(ioctl_addr[24:14])
-		 0,1,2,3: boot_bank = 0;
-		 4,5,6,7: boot_bank = 1;
-	  default: boot_bank = 0;
-	endcase
+		case(ioctl_addr[24:14])
+			 0,1,2,3: boot_bank = 0;
+			 4,5,6,7: boot_bank = 1;
+			 default: boot_bank = 0;
+		endcase
+	end
 end
 
 //////////////////////////////////////////////////////////////////////////
@@ -229,17 +273,6 @@ sdram sdram
 	.vram_addr({2'b10,vram_addr,1'b0}),
 	.vram_dout(vram_dout)
 );
-
-reg [7:0] rom_mask;
-always_comb begin
-	casex(ram_a[22:14])
-	  'h0XX: rom_mask = 0;
-	  'h100: rom_mask = 0;
-	  'h107: rom_mask = 0;
-	  'h1ff: rom_mask = 0;
-	default: rom_mask = 'hFF;
-	endcase
-end
 
 reg model = 0;
 reg reset;
@@ -290,7 +323,7 @@ u765 u765
 	.fast(status[16]),
 
 	.a0(fdc_sel[0]),
-	.ready(u765_ready), // & {motor,motor}),
+	.ready(u765_ready),
 	.motor(motor),
 	.available(2'b01),
 	.nRD(~(u765_sel & io_rd)),
