@@ -55,7 +55,8 @@ assign LED = ~mf2_en & ~ioctl_download;
 
 localparam CONF_STR = {
 	"AMSTRAD;;",
-	"S,DSK,Mount Disk;",
+	"S0,DSK,Mount Disk A:;",
+	"S1,DSK,Mount Disk B:;",
 	"F,E??,Load expansion;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
@@ -108,7 +109,7 @@ wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din;
 wire        sd_buff_wr;
-wire        img_mounted;
+wire  [1:0] img_mounted;
 wire [63:0] img_size;
 wire        img_readonly;
 
@@ -146,8 +147,8 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.sd_conf(0),
 	.sd_sdhc(1),
 	.sd_lba(sd_lba),
-	.sd_rd(|sd_rd),
-	.sd_wr(|sd_wr),
+	.sd_rd(sd_rd),
+	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
@@ -310,8 +311,9 @@ end
 wire [7:0] u765_dout;
 wire       u765_sel = (fdc_sel[3:1] == 'b010);
 
-reg u765_ready = 0;
-always @(posedge clk_sys) if(img_mounted) u765_ready <= |img_size;
+reg  [1:0] u765_ready = 0;
+always @(posedge clk_sys) if(img_mounted[0]) u765_ready[0] <= |img_size;
+always @(posedge clk_sys) if(img_mounted[1]) u765_ready[1] <= |img_size;
 
 u765 u765
 (
@@ -324,8 +326,8 @@ u765 u765
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready),
-	.motor(motor),
-	.available(2'b01),
+	.motor({ motor, motor }),
+	.available(2'b11),
 	.nRD(~(u765_sel & io_rd)),
 	.nWR(~(u765_sel & io_wr)),
 	.din(cpu_dout),
