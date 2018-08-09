@@ -4,7 +4,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 ## Features
 * Precise CPU timings including proper contention model.
 * Precise CRTC model supporting many tricks of Types 1 and 0.
-* (*) 2 disk drives
+* 2 disk drives
 * Disk write support.
 * Close to real disk drive emulation with support of some protections.
 * Selectable CPC 6128/664 mode with separate ROM sets.
@@ -14,8 +14,6 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 * Joystick support with up to 3 buttons (2 on MiST)
 * Kempston, SYMBiFACE II and Multiplay mice.
 * HQ2x and Scanlines FX for scandoubler.
-
-(*) - Features available only on **MiSTer**
 
 ## Installation
 place RBF and **amstrad.rom** into root of SD card. Or on **MiSTer** you can rename ROM to boot.rom and put it into Amstrad folder.
