@@ -29,6 +29,8 @@ module Amstrad
 	input   [1:0] CLOCK_27,
 	output        AUDIO_L,
 	output        AUDIO_R,
+	output        UART_TX,
+	input         UART_RX,
 	output        SDRAM_DQMH,
 	output        SDRAM_DQML,
 	output        SDRAM_CKE,
@@ -469,6 +471,8 @@ wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
 wire        ce_pix_fs;
 wire        field;
+wire  [9:0] Fn;
+wire        tape_rec;
 
 Amstrad_motherboard motherboard
 (
@@ -479,6 +483,7 @@ Amstrad_motherboard motherboard
 	.ce_16(ce_16),
 
 	.ps2_key(ps2_key),
+	.Fn(Fn),
 
 	.no_wait(status[6]),
 	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
@@ -487,6 +492,10 @@ Amstrad_motherboard motherboard
 
 	.joy1(joy1),
 	.joy2(joy2),
+
+	.tape_in(tape_play),
+	.tape_out(tape_rec),
+	.tape_motor(tape_motor),
 
 	.audio_l(audio_l),
 	.audio_r(audio_r),
@@ -612,7 +621,7 @@ sigma_delta_dac #(7) dac_l
 (
 	.CLK(clk_sys & ce_16),
 	.RESET(reset),
-	.DACin(audio_l),
+	.DACin(audio_l - audio_l[7:2] + {tape_rec, 5'd0}),
 	.DACout(AUDIO_L)
 );
 
@@ -620,8 +629,14 @@ sigma_delta_dac #(7) dac_r
 (
 	.CLK(clk_sys & ce_16),
 	.RESET(reset),
-	.DACin(audio_r),
+	.DACin(audio_r - audio_r[7:2] + {tape_rec, 5'd0}),
 	.DACout(AUDIO_R)
 );
+
+//////////////////////////////////////////////////////////////////////
+
+assign UART_TX = tape_motor;
+wire tape_motor;
+wire tape_play = UART_RX;
 
 endmodule
