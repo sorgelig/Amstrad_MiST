@@ -63,6 +63,7 @@ localparam CONF_STR = {
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O2,CRTC,Type 1,Type 0;",
+	"OI,Joysticks swap,No,Yes;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O6,CPU timings,Original,Fast;",
 	"OGH,FDC,Original,Fast,Disabled;",
@@ -489,8 +490,8 @@ Amstrad_motherboard motherboard
 	.crtc_type(~status[2]),
  	.resync(1),
 
-	.joy1(joy1),
-	.joy2(joy2),
+	.joy1(status[18] ? joy2 : joy1),
+	.joy2(status[18] ? joy1 : joy2),
 
 	.tape_in(tape_play),
 	.tape_out(tape_rec),
