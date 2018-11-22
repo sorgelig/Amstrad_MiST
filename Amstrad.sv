@@ -384,8 +384,8 @@ always @(posedge clk_sys) begin
 	if (mf2_ram_we) begin
 		mf2_ram[mf2_ram_a] <= mf2_ram_in;
 		mf2_ram_out <= mf2_ram_in;
-	end
-	mf2_ram_out <= mf2_ram[mf2_ram_a];
+	end else
+		mf2_ram_out <= mf2_ram[mf2_ram_a];
 end
 
 always @(posedge clk_sys) begin
