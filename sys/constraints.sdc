@@ -22,8 +22,8 @@ set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|cl
 # Some relaxed constrain to the VGA pins. The signals should arrive together, the delay is not really important.
 set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|clk[0]}] -max 0 [get_ports {VGA_*}]
 set_output_delay -clock [get_clocks {pll|altpll_component|auto_generated|pll1|clk[0]}] -min -5 [get_ports {VGA_*}]
-set_multicycle_path -to [get_ports {VGA_*}] -setup 2
-set_multicycle_path -to [get_ports {VGA_*}] -hold 2
+set_multicycle_path -to [get_ports {VGA_*}] -setup 3
+set_multicycle_path -to [get_ports {VGA_*}] -hold 3
 
 # T80 just cannot run in 64 MHz, but it's safe to allow 2 clock cycles for the paths in it
 set_multicycle_path -from {Amstrad_motherboard:motherboard|T80pa:CPU|T80:u0|*} -setup 2

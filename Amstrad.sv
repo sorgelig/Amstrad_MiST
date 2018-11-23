@@ -133,6 +133,7 @@ wire [31:0] status;
 
 wire        scandoubler_disable;
 wire        forced_scandoubler = ~scandoubler_disable;
+wire        ypbpr;
 
 mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 (
@@ -167,6 +168,7 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.buttons(buttons),
 	.status(status),
 	.scandoubler_disable(scandoubler_disable),
+	.ypbpr(ypbpr),
 
 	.ioctl_ce(ce_boot),
 	.ioctl_wr(ioctl_wr),
@@ -289,14 +291,7 @@ end
 
 wire [3:0] fdc_sel = {cpu_addr[10],cpu_addr[8],cpu_addr[7],cpu_addr[0]};
 
-reg  [7:0] fdc_dout;
-always_comb begin
-	case({io_rd & ~status[17],fdc_sel[3:1]})
-		'b1_000: fdc_dout = motor;     // motor read 
-		'b1_010: fdc_dout = u765_dout; // u765 read 
-		default: fdc_dout = 8'hFF;
-	endcase
-end
+wire [7:0] fdc_dout = (u765_sel & io_rd) ? u765_dout : 8'hFF;
 
 reg motor = 0;
 always @(posedge clk_sys) begin
@@ -384,8 +379,8 @@ always @(posedge clk_sys) begin
 	if (mf2_ram_we) begin
 		mf2_ram[mf2_ram_a] <= mf2_ram_in;
 		mf2_ram_out <= mf2_ram_in;
-	end
-	mf2_ram_out <= mf2_ram[mf2_ram_a];
+	end else
+		mf2_ram_out <= mf2_ram[mf2_ram_a];
 end
 
 always @(posedge clk_sys) begin
@@ -593,7 +588,7 @@ video_mixer #(800) video_mixer
 wire       VGA_DE;
 wire [7:0] MB, MG, MR;
 wire       MHS, MVS;
-
+wire [5:0] osd_R, osd_G, osd_B;
 osd osd
 (
 	.clk_sys(clk_sys),
@@ -605,13 +600,25 @@ osd osd
 	.B_in(VGA_DE ? MB[7:2] : 6'd0),
 	.G_in(VGA_DE ? MG[7:2] : 6'd0),
 	.R_in(VGA_DE ? MR[7:2] : 6'd0),
-	.B_out(VGA_B),
-	.G_out(VGA_G),
-	.R_out(VGA_R)
+	.B_out(osd_B),
+	.G_out(osd_G),
+	.R_out(osd_R)
 );
 
-assign VGA_HS = forced_scandoubler ? ~MHS : ~(MVS ^ MHS);
-assign VGA_VS = forced_scandoubler ? ~MVS : 1'b1;
+vga_space vga_space
+(
+	.ypbpr_full(1),
+	.ypbpr_en(ypbpr),
+	.red(osd_R),
+	.green(osd_G),
+	.blue(osd_B),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B)
+);
+
+assign VGA_HS = (forced_scandoubler & ~ypbpr) ? ~MHS : ~(MVS ^ MHS);
+assign VGA_VS = (forced_scandoubler & ~ypbpr) ? ~MVS : 1'b1;
 
 //////////////////////////////////////////////////////////////////////
 
