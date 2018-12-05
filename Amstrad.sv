@@ -64,6 +64,8 @@ localparam CONF_STR = {
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O2,CRTC,Type 1,Type 0;",
 	"OI,Joysticks swap,No,Yes;",
+	"OJ,Mouse,Enabled,Disabled;",
+	"-;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O6,CPU timings,Original,Fast;",
 	"OGH,FDC,Original,Fast,Disabled;",
@@ -427,13 +429,15 @@ end
 
 //////////////////////////////////////////////////////////////////////
 
+wire mouse_rd = io_rd & ~status[19];
+
 wire [7:0] kmouse_dout;
 kempston_mouse kmouse
 (
 	.clk_sys(clk_sys),
 	.reset(reset),
 	.ps2_mouse(ps2_mouse),
-	.addr({cpu_addr[0], ~cpu_addr[4] & ~cpu_addr[10] & io_rd, cpu_addr[8]}),
+	.addr({cpu_addr[0], ~cpu_addr[4] & ~cpu_addr[10] & mouse_rd, cpu_addr[8]}),
 	.dout(kmouse_dout)
 );
 
@@ -443,7 +447,7 @@ symbiface_mouse smouse
 	.clk_sys(clk_sys),
 	.reset(reset),
 	.ps2_mouse(ps2_mouse),
-	.sel((cpu_addr == 16'hFD10) && io_rd),
+	.sel((cpu_addr == 16'hFD10) & mouse_rd),
 	.dout(smouse_dout)
 );
 
@@ -453,7 +457,7 @@ multiplay_mouse mmouse
 	.clk_sys(clk_sys),
 	.reset(reset),
 	.ps2_mouse(ps2_mouse),
-	.sel((cpu_addr[15:4] == 12'hF99) && ~cpu_addr[3] && io_rd),
+	.sel((cpu_addr[15:4] == 12'hF99) & ~cpu_addr[3] & mouse_rd),
 	.addr(cpu_addr[2:0]),
 	.dout(mmouse_dout)
 );
