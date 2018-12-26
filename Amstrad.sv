@@ -65,7 +65,6 @@ localparam CONF_STR = {
 	"O2,CRTC,Type 1,Type 0;",
 	"OI,Joysticks swap,No,Yes;",
 	"OJ,Mouse,Enabled,Disabled;",
-	"-;",
 	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"O6,CPU timings,Original,Fast;",
 	"OGH,FDC,Original,Fast,Disabled;",
