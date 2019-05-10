@@ -48,7 +48,14 @@ module sdram
 	input             we,         // cpu/chipset requests write
 
 	output reg [15:0] vram_dout,
-	input      [22:0] vram_addr
+	input      [22:0] vram_addr,
+
+	input      [22:0] tape_addr,
+	input       [7:0] tape_din,
+	output reg  [7:0] tape_dout,
+	input             tape_wr,
+	input             tape_rd,
+	output reg        tape_ack
 );
 
 assign SDRAM_CKE = ~init;
@@ -74,19 +81,23 @@ reg [22:0] a;
 reg        wr;
 reg        ram_req=0;
 reg        vram_req=0;
+reg        tape_req=0;
 
 // access manager
 always @(posedge clk) begin
 	reg [22:0] old_addr;
 	reg old_rd, old_we, old_ref;
+	reg old_tape_rd, old_tape_wr;
 
 	old_rd<=oe;
 	old_we<=we;
 	old_ref<=clkref;
+	old_tape_rd <= tape_rd;
 
 	if(q==STATE_IDLE) begin
 		ram_req <= 0;
 		vram_req <= 0;
+		tape_req <= 0;
 		wr <= 0;
 
 		if((~old_rd & oe) | (~old_we & we)) begin
@@ -98,6 +109,16 @@ always @(posedge clk) begin
 			vram_req <= 1;
 			old_addr <= vram_addr;
 			a <= vram_addr;
+		end
+		else begin
+			// The IO Controller advances in about 5-6 SDRAM cycles, thus
+			// no tape read/write should skipped even in this lowest priority
+			old_tape_wr <= tape_wr;
+			if((~old_tape_rd & tape_rd) | (~old_tape_wr & tape_wr)) begin
+				tape_req <= 1;
+				wr <= tape_wr;
+				a <= tape_addr;
+			end
 		end
 	end
 
@@ -168,15 +189,17 @@ always @(posedge clk) begin
 	endcase
 
 	if(q == STATE_START) begin
-		SDRAM_BA <= (mode == MODE_NORMAL) ? bank : 2'b00;
-		SDRAM_DQ <= wr ? {din, din} : 16'bZZZZZZZZZZZZZZZZ;
+		SDRAM_BA <= (mode == MODE_NORMAL) ? (tape_req ? 2'b10 : bank) : 2'b00;
+		SDRAM_DQ <= wr ? (tape_req ? {tape_din, tape_din} : {din, din}) : 16'bZZZZZZZZZZZZZZZZ;
 		{SDRAM_DQMH,SDRAM_DQML} <= {~a[0] & wr,a[0] & wr};
-		if(wr) ram_dout <= din;
+		if(ram_req & wr) ram_dout <= din;
 	end
 
 	if (q == STATE_CONT+CAS_LATENCY+1) begin
 		if (~wr & ram_req) ram_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
 		else if (vram_req) vram_dout<=SDRAM_DQ;
+		else if (~wr & tape_req) tape_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
+		if (tape_req) tape_ack <= ~tape_ack;
 	end
 end
 
