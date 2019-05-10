@@ -61,6 +61,7 @@ localparam CONF_STR = {
 	"S1,DSK,Mount Disk B:;",
 	"F,E??,Load expansion;",
 	"F,CDT,Load;",
+	"OK,Tape sound,Disabled,Enabled;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O2,CRTC,Type 1,Type 0;",
@@ -652,12 +653,13 @@ assign VGA_VS = (forced_scandoubler & ~ypbpr) ? ~MVS : 1'b1;
 //////////////////////////////////////////////////////////////////////
 
 wire [7:0] audio_l, audio_r;
+wire       tape_sound = status[20];
 
 sigma_delta_dac #(7) dac_l
 (
 	.CLK(clk_sys & ce_16),
 	.RESET(reset),
-	.DACin(audio_l - audio_l[7:2] + {tape_rec, 5'd0}),
+	.DACin(audio_l - audio_l[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
@@ -665,7 +667,7 @@ sigma_delta_dac #(7) dac_r
 (
 	.CLK(clk_sys & ce_16),
 	.RESET(reset),
-	.DACin(audio_r - audio_r[7:2] + {tape_rec, 5'd0}),
+	.DACin(audio_r - audio_r[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 
