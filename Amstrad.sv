@@ -53,13 +53,15 @@ module Amstrad
 
 //////////////////////////////////////////////////////////////////////////
 
-assign LED = ~mf2_en & ~ioctl_download;
+assign LED = ~mf2_en & ~ioctl_download & ~tape_motor;
 
 localparam CONF_STR = {
 	"AMSTRAD;;",
 	"S0,DSK,Mount Disk A:;",
 	"S1,DSK,Mount Disk B:;",
 	"F,E??,Load expansion;",
+	"F,CDT,Load;",
+	"OK,Tape sound,Disabled,Enabled;",
 	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
 	"O2,CRTC,Type 1,Type 0;",
@@ -180,12 +182,18 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.ioctl_file_ext(ioctl_file_ext)
 );
 
-wire        rom_download = ioctl_download;
+wire        rom_download  = ioctl_download && (ioctl_index == 8'd0);
+wire        ext_download  = ioctl_download && (ioctl_index == 8'd3);
+wire        tape_download = ioctl_download && (ioctl_index == 8'd4);
 
 reg         boot_wr = 0;
 reg  [22:0] boot_a;
 reg   [1:0] boot_bank;
 reg   [7:0] boot_dout;
+
+reg  [22:0] tape_addr;
+reg         tape_wr = 0;
+reg         tape_ack;
 
 wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
 reg         rom_map[256] = '{default:0};
@@ -196,7 +204,8 @@ reg [8:0] page = 0;
 always @(posedge clk_sys) begin
 	reg combo = 0;
 	reg old_download;
-	reg old_wr;      
+	reg old_wr;
+	reg old_tape_ack;
 
 	old_wr <= ioctl_wr;
 	if(rom_download & old_wr & ~ioctl_wr) begin
@@ -208,7 +217,7 @@ always @(posedge clk_sys) begin
 	end
 
 	old_download <= ioctl_download;
-	if(~old_download & ioctl_download) begin
+	if(~old_download & ioctl_download & ext_download) begin
 		page <= 9'h1EE; // some unused page for malformed file extension
 		combo <= 0;
 		if(ioctl_file_ext[15:8] >= "0" && ioctl_file_ext[15:8] <= "9") page[7:4] <= ioctl_file_ext[11:8];
@@ -218,19 +227,30 @@ always @(posedge clk_sys) begin
 		if(ioctl_file_ext[15:0] == "ZZ") page <= 0;
 		if(ioctl_file_ext[15:0] == "Z0") begin page <= 0; combo <= 1; end
 	end
+
+	old_tape_ack <= tape_ack;
+	if(tape_download) begin
+		if(old_tape_ack ^ tape_ack) tape_wr <= 0;
+		if(~old_wr & ioctl_wr) tape_wr <= 1'b1;
+	end
 end
 
 always_comb begin
-	boot_wr = rom_download & ioctl_wr;
+	boot_wr = (rom_download | ext_download) & ioctl_wr;
 	boot_dout = ioctl_dout;
 
 	boot_a[13:0] = ioctl_addr[13:0];
 	boot_a[22:14] = '1;
+	boot_bank = 0;
+	tape_addr = tape_play_addr;
 
-	if(ioctl_index) begin
+	if (tape_download) begin
+		tape_addr = ioctl_addr[22:0];
+	end
+	else if(ext_download) begin
 		boot_a[22]    = page[8];
 		boot_a[21:14] = page[7:0] + ioctl_addr[21:14];
-		boot_bank     = model;
+		boot_bank     = { 1'b0, model };
 	end
 	else begin
 		case(ioctl_addr[24:14])
@@ -272,12 +292,19 @@ sdram sdram
 	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en & ~rom_mask),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
 	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
-	.bank(reset ? boot_bank : model),
+	.bank(reset ? boot_bank : { 1'b0, model } ),
 	.din (reset ? boot_dout : cpu_dout),
 	.dout(ram_dout),
 
 	.vram_addr({2'b10,vram_addr,1'b0}),
-	.vram_dout(vram_dout)
+	.vram_dout(vram_dout),
+
+	.tape_addr(tape_addr),
+	.tape_din(boot_dout),
+	.tape_dout(tape_dout),
+	.tape_wr(tape_wr),
+	.tape_rd(tape_rd),
+	.tape_ack(tape_ack)
 );
 
 reg model = 0;
@@ -287,6 +314,55 @@ always @(posedge clk_sys) begin
 	if(reset) model <= status[4];
 	reset <= status[0] | buttons[1] | rom_download;
 end
+
+////////////////////// CDT playback ///////////////////////////////
+
+wire        tape_read;
+wire        tape_wrfull;
+reg         tape_reset;
+reg         tape_wrreq;
+reg         tape_rd;
+reg   [7:0] tape_dout;
+reg  [22:0] tape_play_addr;
+reg  [22:0] tape_last_addr;
+
+always @(posedge clk_sys) begin
+	reg old_tape_ack;
+
+    if (reset) begin
+        tape_play_addr <= 0;
+        tape_last_addr <= 0;
+        tape_rd <= 0;
+        tape_reset <= 1;
+    end else begin
+		old_tape_ack <= tape_ack;
+        tape_reset <= 0;
+        if (tape_download) begin
+            tape_play_addr <= 0;
+            tape_last_addr <= tape_addr;
+            tape_reset <= 1;
+        end
+        tape_wrreq <= 0;
+        if (!ioctl_download && tape_play_addr != tape_last_addr && !tape_wrfull && !tape_rd && ce_ref) tape_rd <= 1;
+        if (!ioctl_download && tape_rd && tape_ack ^ old_tape_ack) begin
+            tape_wrreq <= 1;
+			tape_rd <= 0;
+            tape_play_addr <= tape_play_addr + 1'd1;
+        end
+    end
+end
+
+tzxplayer tzxplayer
+(
+    .clk(clk_sys),
+    .restart_tape(tape_reset),
+    .host_tap_in(tape_dout),
+    .host_tap_wrreq(tape_wrreq),
+    .tap_fifo_wrfull(tape_wrfull),
+    .tap_fifo_error(),
+    .cass_read(tape_read),
+    .cass_motor(tape_motor)
+);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -626,12 +702,13 @@ assign VGA_VS = (forced_scandoubler & ~ypbpr) ? ~MVS : 1'b1;
 //////////////////////////////////////////////////////////////////////
 
 wire [7:0] audio_l, audio_r;
+wire       tape_sound = status[20];
 
 sigma_delta_dac #(7) dac_l
 (
 	.CLK(clk_sys & ce_16),
 	.RESET(reset),
-	.DACin(audio_l - audio_l[7:2] + {tape_rec, 5'd0}),
+	.DACin(audio_l - audio_l[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
@@ -639,7 +716,7 @@ sigma_delta_dac #(7) dac_r
 (
 	.CLK(clk_sys & ce_16),
 	.RESET(reset),
-	.DACin(audio_r - audio_r[7:2] + {tape_rec, 5'd0}),
+	.DACin(audio_r - audio_r[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 
@@ -647,6 +724,6 @@ sigma_delta_dac #(7) dac_r
 
 assign UART_TX = tape_motor;
 wire tape_motor;
-wire tape_play = UART_RX;
+wire tape_play = tape_read ^ UART_RX;
 
 endmodule
