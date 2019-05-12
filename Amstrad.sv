@@ -53,7 +53,7 @@ module Amstrad
 
 //////////////////////////////////////////////////////////////////////////
 
-assign LED = ~mf2_en & ~ioctl_download;
+assign LED = ~mf2_en & ~ioctl_download & ~tape_motor;
 
 localparam CONF_STR = {
 	"AMSTRAD;;",
@@ -242,7 +242,7 @@ always_comb begin
 	boot_a[13:0] = ioctl_addr[13:0];
 	boot_a[22:14] = '1;
 	boot_bank = 0;
-	tape_addr = 0;
+	tape_addr = tape_play_addr;
 
 	if (tape_download) begin
 		tape_addr = ioctl_addr[22:0];
@@ -301,9 +301,9 @@ sdram sdram
 
 	.tape_addr(tape_addr),
 	.tape_din(boot_dout),
-	.tape_dout(),
+	.tape_dout(tape_dout),
 	.tape_wr(tape_wr),
-	.tape_rd(),
+	.tape_rd(tape_rd),
 	.tape_ack(tape_ack)
 );
 
@@ -314,6 +314,55 @@ always @(posedge clk_sys) begin
 	if(reset) model <= status[4];
 	reset <= status[0] | buttons[1] | rom_download;
 end
+
+////////////////////// CDT playback ///////////////////////////////
+
+wire        tape_read;
+wire        tape_wrfull;
+reg         tape_reset;
+reg         tape_wrreq;
+reg         tape_rd;
+reg   [7:0] tape_dout;
+reg  [22:0] tape_play_addr;
+reg  [22:0] tape_last_addr;
+
+always @(posedge clk_sys) begin
+	reg old_tape_ack;
+
+    if (reset) begin
+        tape_play_addr <= 0;
+        tape_last_addr <= 0;
+        tape_rd <= 0;
+        tape_reset <= 1;
+    end else begin
+		old_tape_ack <= tape_ack;
+        tape_reset <= 0;
+        if (tape_download) begin
+            tape_play_addr <= 0;
+            tape_last_addr <= tape_addr;
+            tape_reset <= 1;
+        end
+        tape_wrreq <= 0;
+        if (!ioctl_download && tape_play_addr != tape_last_addr && !tape_wrfull && !tape_rd && ce_ref) tape_rd <= 1;
+        if (!ioctl_download && tape_rd && tape_ack ^ old_tape_ack) begin
+            tape_wrreq <= 1;
+			tape_rd <= 0;
+            tape_play_addr <= tape_play_addr + 1'd1;
+        end
+    end
+end
+
+tzxplayer tzxplayer
+(
+    .clk(clk_sys),
+    .restart_tape(tape_reset),
+    .host_tap_in(tape_dout),
+    .host_tap_wrreq(tape_wrreq),
+    .tap_fifo_wrfull(tape_wrfull),
+    .tap_fifo_error(),
+    .cass_read(tape_read),
+    .cass_motor(tape_motor)
+);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -675,6 +724,6 @@ sigma_delta_dac #(7) dac_r
 
 assign UART_TX = tape_motor;
 wire tape_motor;
-wire tape_play = UART_RX;
+wire tape_play = tape_read ^ UART_RX;
 
 endmodule

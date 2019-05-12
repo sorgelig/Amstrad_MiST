@@ -62,7 +62,7 @@ assign SDRAM_CKE = ~init;
 assign dout = oe ? ram_dout : 8'hFF;
 
 // no burst configured
-localparam RASCAS_DELAY   = 3'd3;   // tRCD=20ns -> 3 cycles@128MHz
+localparam RASCAS_DELAY   = 3'd2;   // tRCD=20ns -> 2 cycles@64MHz
 localparam BURST_LENGTH   = 3'b000; // 000=1, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2;   // 2/3 allowed
@@ -73,7 +73,7 @@ localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, B
 
 localparam STATE_IDLE  = 3'd0;   // first state in cycle
 localparam STATE_START = 3'd1;   // state in which a new command can be started
-localparam STATE_CONT  = STATE_START  + RASCAS_DELAY; // 4 command can be continued
+localparam STATE_CONT  = STATE_START  + RASCAS_DELAY; // 3 command can be continued
 localparam STATE_LAST  = 3'd7;   // last state in cycle
 
 reg  [2:0] q;
@@ -87,12 +87,10 @@ reg        tape_req=0;
 always @(posedge clk) begin
 	reg [22:0] old_addr;
 	reg old_rd, old_we, old_ref;
-	reg old_tape_rd, old_tape_wr;
 
 	old_rd<=oe;
 	old_we<=we;
 	old_ref<=clkref;
-	old_tape_rd <= tape_rd;
 
 	if(q==STATE_IDLE) begin
 		ram_req <= 0;
@@ -113,8 +111,7 @@ always @(posedge clk) begin
 		else begin
 			// The IO Controller advances in about 5-6 SDRAM cycles, thus
 			// no tape read/write should skipped even in this lowest priority
-			old_tape_wr <= tape_wr;
-			if((~old_tape_rd & tape_rd) | (~old_tape_wr & tape_wr)) begin
+			if(tape_rd | tape_wr) begin
 				tape_req <= 1;
 				wr <= tape_wr;
 				a <= tape_addr;
@@ -164,7 +161,7 @@ reg [7:0] ram_dout;
 
 // SDRAM state machines
 always @(posedge clk) begin
-	casex({ram_req|vram_req,wr,mode,q})
+	casex({ram_req|vram_req|tape_req,wr,mode,q})
 		{2'b1X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
 		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_WRITE;
 		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
@@ -177,7 +174,7 @@ always @(posedge clk) begin
 		                          default: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_INHIBIT;
 	endcase
 
-	casex({ram_req|vram_req,mode,q})
+	casex({ram_req|vram_req|tape_req,mode,q})
 		{1'b1,  MODE_NORMAL, STATE_START}: SDRAM_A <= a[21:9];
 		{1'b1,  MODE_NORMAL, STATE_CONT }: SDRAM_A <= {4'b0010, a[22], a[8:1]};
 
