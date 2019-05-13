@@ -56,6 +56,7 @@ type tzx_state_t is (
 	TZX_NEWBLOCK,
 	TZX_PAUSE,
 	TZX_PAUSE2,
+	TZX_HWTYPE,
 	TZX_NORMAL,
 	TZX_TURBO,
 	TZX_PLAY_TONE,
@@ -165,6 +166,7 @@ begin
 
 				case tap_fifo_do is
 				when x"20" => tzx_state <= TZX_PAUSE;
+				when x"33" => tzx_state <= TZX_HWTYPE;
 				when x"10" => tzx_state <= TZX_NORMAL;
 				when x"11" => tzx_state <= TZX_TURBO;
 				when others => null;
@@ -189,6 +191,19 @@ begin
 				else
 					tap_fifo_rdreq <= '1';
 					tzx_state <= TZX_NEWBLOCK;
+				end if;
+
+			when TZX_HWTYPE =>
+				tzx_offset <= tzx_offset + 1;
+				-- 0, 1-3, 1-3, ...
+				if    tzx_offset = x"00" then data_len( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"03" then
+					if data_len(7 downto 0) = x"01" then
+						tzx_state <= TZX_NEWBLOCK;
+					else
+						data_len(7 downto 0) <= data_len(7 downto 0) - 1;
+						tzx_offset <= x"01";
+					end if;
 				end if;
 
 			when TZX_NORMAL =>
