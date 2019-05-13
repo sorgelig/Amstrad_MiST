@@ -33,6 +33,13 @@ end tzxplayer;
 
 architecture struct of tzxplayer is
 
+constant NORMAL_PILOT_LEN    : integer := 2000;
+constant NORMAL_SYNC1_LEN    : integer := 667;
+constant NORMAL_SYNC2_LEN    : integer := 855;
+constant NORMAL_ZERO_LEN     : integer := 855;
+constant NORMAL_ONE_LEN      : integer := 1710;
+constant NORMAL_PILOT_PULSES : integer := 4096;
+
 signal tap_fifo_do    : std_logic_vector(7 downto 0);
 signal tap_fifo_rdreq : std_logic;
 signal tap_fifo_empty : std_logic;
@@ -49,6 +56,7 @@ type tzx_state_t is (
 	TZX_NEWBLOCK,
 	TZX_PAUSE,
 	TZX_PAUSE2,
+	TZX_NORMAL,
 	TZX_TURBO,
 	TZX_PLAY_TONE,
 	TZX_PLAY_SYNC1,
@@ -69,7 +77,7 @@ signal sync2_l        : std_logic_vector(15 downto 0);
 signal zero_l         : std_logic_vector(15 downto 0);
 signal one_l          : std_logic_vector(15 downto 0);
 signal pilot_pulses   : std_logic_vector(15 downto 0);
-signal last_byte_bits : std_logic_vector( 2 downto 0);
+signal last_byte_bits : std_logic_vector( 3 downto 0);
 signal data_len       : std_logic_vector(23 downto 0);
 signal pulse_len      : std_logic_vector(15 downto 0);
 
@@ -157,6 +165,7 @@ begin
 
 				case tap_fifo_do is
 				when x"20" => tzx_state <= TZX_PAUSE;
+				when x"10" => tzx_state <= TZX_NORMAL;
 				when x"11" => tzx_state <= TZX_TURBO;
 				when others => null;
 				end case;
@@ -182,6 +191,25 @@ begin
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
+			when TZX_NORMAL =>
+				tzx_offset <= tzx_offset + 1;
+				if    tzx_offset = x"00" then pause_len( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"01" then pause_len(15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"02" then data_len ( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"03" then
+					tap_fifo_rdreq <= '0';
+					data_len(15 downto  8) <= tap_fifo_do;
+					data_len(23 downto 16) <= (others => '0');
+					pilot_l <= conv_std_logic_vector(NORMAL_PILOT_LEN, 16);
+					sync1_l <= conv_std_logic_vector(NORMAL_SYNC1_LEN, 16);
+					sync2_l <= conv_std_logic_vector(NORMAL_SYNC2_LEN, 16);
+					zero_l  <= conv_std_logic_vector(NORMAL_ZERO_LEN,  16);
+					one_l   <= conv_std_logic_vector(NORMAL_ONE_LEN,   16);
+					pilot_pulses <= conv_std_logic_vector(NORMAL_PILOT_PULSES, 16);
+					last_byte_bits <= "1000";
+					tzx_state <= TZX_PLAY_TONE;
+				end if;
+
 			when TZX_TURBO =>
 				tzx_offset <= tzx_offset + 1;
 				if    tzx_offset = x"00" then pilot_l( 7 downto  0) <= tap_fifo_do;
@@ -196,7 +224,7 @@ begin
 				elsif tzx_offset = x"09" then one_l  (15 downto  8) <= tap_fifo_do;
 				elsif tzx_offset = x"0A" then pilot_pulses( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"0B" then pilot_pulses(15 downto  8) <= tap_fifo_do;
-				elsif tzx_offset = x"0C" then last_byte_bits <= tap_fifo_do(2 downto 0);
+				elsif tzx_offset = x"0C" then last_byte_bits <= tap_fifo_do(3 downto 0);
 				elsif tzx_offset = x"0D" then pause_len( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = x"0E" then pause_len(15 downto  8) <= tap_fifo_do;
 				elsif tzx_offset = x"0F" then data_len ( 7 downto  0) <= tap_fifo_do;
@@ -213,17 +241,16 @@ begin
 				if pilot_pulses /= 0 then
 					pilot_pulses <= pilot_pulses - 1;
 				else
-					tzx_state <= TZX_PLAY_SYNC1;
+					--on CPC, seems the first sync pulse is not used
+					--bit1 length included in the tone
+					--tzx_state <= TZX_PLAY_SYNC1;
+					tzx_state <= TZX_PLAY_SYNC2;
 				end if;
 
 			when TZX_PLAY_SYNC1 =>
 				tap_fifo_rdreq <= '0';
 				pulse_len <= sync1_l;
-				if sync1_l = sync2_l then
-					tzx_state <= TZX_PLAY_TAPBLOCK;
-				else
-					tzx_state <= TZX_PLAY_SYNC2;
-				end if;
+				tzx_state <= TZX_PLAY_SYNC2;
 
 			when TZX_PLAY_SYNC2 =>
 				tap_fifo_rdreq <= '0';
