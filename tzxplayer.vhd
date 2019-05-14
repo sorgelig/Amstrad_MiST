@@ -58,6 +58,9 @@ type tzx_state_t is (
 	TZX_PAUSE2,
 	TZX_HWTYPE,
 	TZX_TEXT,
+	TZX_TONE,
+	TZX_PULSES,
+	TZX_DATA,
 	TZX_NORMAL,
 	TZX_TURBO,
 	TZX_PLAY_TONE,
@@ -82,6 +85,7 @@ signal pilot_pulses   : std_logic_vector(15 downto 0);
 signal last_byte_bits : std_logic_vector( 3 downto 0);
 signal data_len       : std_logic_vector(23 downto 0);
 signal pulse_len      : std_logic_vector(15 downto 0);
+signal half_period    : std_logic;
 
 begin
 -- for wav mode use large depth fifo (eg 512 x 32bits)
@@ -130,11 +134,9 @@ begin
 				if wave_cnt = pulse_len then
 					wave_cnt <= (others => '0');
 					cass_read <= wave_period;
-					if wave_period = '1' then
+					wave_period <= not wave_period;
+					if wave_period = '1' or half_period = '1' then
 						pulse_len <= (others => '0');
-						wave_period <= '0';
-					else
-						wave_period <= '1';
 					end if;
 				end if;
 			end if;
@@ -162,6 +164,7 @@ begin
 				end if;
 
 			when TZX_NEWBLOCK =>
+				half_period <= '0';
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
 
@@ -171,6 +174,9 @@ begin
 				when x"30" => tzx_state <= TZX_TEXT;
 				when x"21" => tzx_state <= TZX_TEXT; -- Group start
 				when x"22" => null; -- Group end
+				when x"12" => tzx_state <= TZX_TONE;
+				when x"13" => tzx_state <= TZX_PULSES;
+				when x"14" => tzx_state <= TZX_DATA;
 				when x"10" => tzx_state <= TZX_NORMAL;
 				when x"11" => tzx_state <= TZX_TURBO;
 				when others => null;
@@ -215,6 +221,63 @@ begin
 				if    tzx_offset = x"00" then data_len( 7 downto  0) <= tap_fifo_do;
 				elsif tzx_offset = data_len(7 downto 0) then
 						tzx_state <= TZX_NEWBLOCK;
+				end if;
+
+			when TZX_TONE =>
+				tzx_offset <= tzx_offset + 1;
+				-- 0, 1, 2, 3, 4, 4, 4, ...
+				if    tzx_offset = x"00" then pilot_l( 7 downto 0) <= tap_fifo_do;
+				elsif tzx_offset = x"01" then pilot_l(15 downto 8) <= tap_fifo_do;
+				elsif tzx_offset = x"02" then pilot_pulses( 7 downto 0) <= tap_fifo_do;
+				elsif tzx_offset = x"03" then
+					tap_fifo_rdreq <= '0';
+					pilot_pulses(15 downto 8) <= tap_fifo_do;
+				else
+					tzx_offset <= x"04";
+					tap_fifo_rdreq <= '0';
+					if pilot_pulses = 0 then
+						tap_fifo_rdreq <= '1';
+						tzx_state <= TZX_NEWBLOCK;
+					else
+						pilot_pulses <= pilot_pulses - 1;
+						half_period <= '1';
+						pulse_len <= pilot_l;
+					end if;
+				end if;
+
+			when TZX_PULSES =>
+				tzx_offset <= tzx_offset + 1;
+				-- 0, 1-2+3, 1-2+3, ...
+				if    tzx_offset = x"00" then data_len( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"01" then one_l( 7 downto 0) <= tap_fifo_do;
+				elsif tzx_offset = x"02" then
+					tap_fifo_rdreq <= '0';
+					half_period <= '1';
+					pulse_len <= tap_fifo_do & one_l( 7 downto 0);
+				elsif tzx_offset = x"03" then
+					if data_len(7 downto 0) = x"01" then
+						tzx_state <= TZX_NEWBLOCK;
+					else
+						data_len(7 downto 0) <= data_len(7 downto 0) - 1;
+						tzx_offset <= x"01";
+					end if;
+				end if;
+
+			when TZX_DATA =>
+				tzx_offset <= tzx_offset + 1;
+				if    tzx_offset = x"00" then zero_l ( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"01" then zero_l (15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"02" then one_l  ( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"03" then one_l  (15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"04" then last_byte_bits <= tap_fifo_do(3 downto 0);
+				elsif tzx_offset = x"05" then pause_len( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"06" then pause_len(15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"07" then data_len ( 7 downto  0) <= tap_fifo_do;
+				elsif tzx_offset = x"08" then data_len (15 downto  8) <= tap_fifo_do;
+				elsif tzx_offset = x"09" then
+					tap_fifo_rdreq <= '0';
+					data_len (23 downto 16) <= tap_fifo_do;
+					tzx_state <= TZX_PLAY_TAPBLOCK;
 				end if;
 
 			when TZX_NORMAL =>
