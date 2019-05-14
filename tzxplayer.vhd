@@ -135,7 +135,7 @@ begin
 					wave_cnt <= (others => '0');
 					cass_read <= wave_period;
 					wave_period <= not wave_period;
-					if wave_period = '1' or half_period = '1' then
+					if wave_period = half_period then
 						pulse_len <= (others => '0');
 					end if;
 				end if;
@@ -164,7 +164,7 @@ begin
 				end if;
 
 			when TZX_NEWBLOCK =>
-				half_period <= '0';
+				half_period <= not wave_period;
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
 
@@ -240,7 +240,7 @@ begin
 						tzx_state <= TZX_NEWBLOCK;
 					else
 						pilot_pulses <= pilot_pulses - 1;
-						half_period <= '1';
+						half_period <= wave_period;
 						pulse_len <= pilot_l;
 					end if;
 				end if;
@@ -252,7 +252,7 @@ begin
 				elsif tzx_offset = x"01" then one_l( 7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then
 					tap_fifo_rdreq <= '0';
-					half_period <= '1';
+					half_period <= wave_period;
 					pulse_len <= tap_fifo_do & one_l( 7 downto 0);
 				elsif tzx_offset = x"03" then
 					if data_len(7 downto 0) = x"01" then
