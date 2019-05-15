@@ -85,7 +85,9 @@ signal pilot_pulses   : std_logic_vector(15 downto 0);
 signal last_byte_bits : std_logic_vector( 3 downto 0);
 signal data_len       : std_logic_vector(23 downto 0);
 signal pulse_len      : std_logic_vector(15 downto 0);
-signal half_period    : std_logic;
+signal end_period     : std_logic;
+signal cass_motor_D   : std_logic;
+signal motor_counter  : std_logic_vector(21 downto 0);
 
 begin
 -- for wav mode use large depth fifo (eg 512 x 32bits)
@@ -112,6 +114,7 @@ begin
 		pulse_len <= (others => '0');
 		tick_cnt <= (others => '0');
 		wave_cnt <= (others => '0');
+		motor_counter <= (others => '0');
 		wave_period <= '0';
 		playing <= '0';
 
@@ -120,7 +123,17 @@ begin
 
 	elsif rising_edge(clk) then
 
-		playing <= cass_motor;
+		-- simulate tape motor momentum
+		-- don't change the playing state if the motor is switched in 50 ms
+		-- Opera Soft K17 protection needs this!
+		cass_motor_D <= cass_motor;
+		if cass_motor_D /= cass_motor then
+			motor_counter <= CONV_STD_LOGIC_VECTOR(50*TZX_MS, motor_counter'length);
+		elsif motor_counter /= 0 then
+			motor_counter <= motor_counter - 1;
+		else
+			playing <= cass_motor;
+		end if;
 
 		if playing = '0' then
 			--cass_read <= '1';
@@ -135,7 +148,7 @@ begin
 					wave_cnt <= (others => '0');
 					cass_read <= wave_period;
 					wave_period <= not wave_period;
-					if wave_period = half_period then
+					if wave_period = end_period then
 						pulse_len <= (others => '0');
 					end if;
 				end if;
@@ -164,7 +177,6 @@ begin
 				end if;
 
 			when TZX_NEWBLOCK =>
-				half_period <= not wave_period;
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
 
@@ -240,7 +252,7 @@ begin
 						tzx_state <= TZX_NEWBLOCK;
 					else
 						pilot_pulses <= pilot_pulses - 1;
-						half_period <= wave_period;
+						end_period <= wave_period;
 						pulse_len <= pilot_l;
 					end if;
 				end if;
@@ -252,7 +264,7 @@ begin
 				elsif tzx_offset = x"01" then one_l( 7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then
 					tap_fifo_rdreq <= '0';
-					half_period <= wave_period;
+					end_period <= wave_period;
 					pulse_len <= tap_fifo_do & one_l( 7 downto 0);
 				elsif tzx_offset = x"03" then
 					if data_len(7 downto 0) = x"01" then
@@ -326,6 +338,7 @@ begin
 
 			when TZX_PLAY_TONE =>
 				tap_fifo_rdreq <= '0';
+				end_period <= not wave_period;
 				pulse_len <= pilot_l;
 				if pilot_pulses /= 0 then
 					pilot_pulses <= pilot_pulses - 1;
@@ -338,11 +351,13 @@ begin
 
 			when TZX_PLAY_SYNC1 =>
 				tap_fifo_rdreq <= '0';
+				end_period <= not wave_period;
 				pulse_len <= sync1_l;
 				tzx_state <= TZX_PLAY_SYNC2;
 
 			when TZX_PLAY_SYNC2 =>
 				tap_fifo_rdreq <= '0';
+				end_period <= not wave_period;
 				pulse_len <= sync2_l;
 				tzx_state <= TZX_PLAY_TAPBLOCK;
 
@@ -358,6 +373,7 @@ begin
 					data_len <= data_len - 1;
 					tzx_state <= TZX_PLAY_TAPBLOCK3;
 				end if;
+				end_period <= not wave_period;
 				if tap_fifo_do(CONV_INTEGER(bit_cnt)) = '0' then
 					pulse_len <= zero_l;
 				else
