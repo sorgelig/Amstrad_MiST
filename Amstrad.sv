@@ -208,7 +208,7 @@ always @(posedge clk_sys) begin
 	reg old_tape_ack;
 
 	old_wr <= ioctl_wr;
-	if(rom_download & old_wr & ~ioctl_wr) begin
+	if((rom_download | ext_download) & old_wr & ~ioctl_wr) begin
 		if(boot_a[22]) rom_map[boot_a[21:14]] <= 1;
 		if(combo && &boot_a[13:0]) begin
 			combo <= 0;
@@ -312,7 +312,7 @@ reg reset;
 
 always @(posedge clk_sys) begin
 	if(reset) model <= status[4];
-	reset <= status[0] | buttons[1] | rom_download;
+	reset <= status[0] | buttons[1] | rom_download | ext_download;
 end
 
 ////////////////////// CDT playback ///////////////////////////////
