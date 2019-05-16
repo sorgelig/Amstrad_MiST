@@ -343,7 +343,7 @@ always @(posedge clk_sys) begin
             tape_reset <= 1;
         end
         tape_wrreq <= 0;
-        if (!ioctl_download && tape_play_addr != tape_last_addr && !tape_wrfull && !tape_rd && ce_ref) tape_rd <= 1;
+        if (!ioctl_download && tape_play_addr <= tape_last_addr && !tape_wrfull && !tape_rd && ce_ref) tape_rd <= 1;
         if (!ioctl_download && tape_rd && tape_ack ^ old_tape_ack) begin
             tape_wrreq <= 1;
 			tape_rd <= 0;
