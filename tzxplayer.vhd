@@ -56,6 +56,7 @@ type tzx_state_t is (
 	TZX_PAUSE2,
 	TZX_HWTYPE,
 	TZX_TEXT,
+	TZX_MESSAGE,
 	TZX_TONE,
 	TZX_PULSES,
 	TZX_DATA,
@@ -180,6 +181,7 @@ begin
 					when x"20" => tzx_state <= TZX_PAUSE;
 					when x"33" => tzx_state <= TZX_HWTYPE;
 					when x"30" => tzx_state <= TZX_TEXT;
+					when x"31" => tzx_state <= TZX_MESSAGE;
 					when x"21" => tzx_state <= TZX_TEXT; -- Group start
 					when x"22" => null; -- Group end
 					when x"12" => tzx_state <= TZX_TONE;
@@ -224,6 +226,10 @@ begin
 						tzx_offset <= x"01";
 					end if;
 				end if;
+
+			when TZX_MESSAGE =>
+				-- skip display time, then then same as TEXT DESRCRIPTION
+				tzx_state <= TZX_TEXT;
 
 			when TZX_TEXT =>
 				tzx_offset <= tzx_offset + 1;
