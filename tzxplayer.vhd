@@ -13,8 +13,7 @@ use ieee.numeric_std.all;
 
 entity tzxplayer is
 generic (
-	TZX_MS : integer := 64000;   -- periods for one milliseconds
-	TZX_3M5_DIV : integer := 18  -- divide to 3.5 MHz
+	TZX_MS : integer := 64000       -- periods for one milliseconds
 );
 port(
 	clk             : in std_logic;
@@ -43,7 +42,7 @@ constant NORMAL_PILOT_PULSES : integer := 4096;
 signal tap_fifo_do    : std_logic_vector(7 downto 0);
 signal tap_fifo_rdreq : std_logic;
 signal tap_fifo_empty : std_logic;
-signal tick_cnt       : std_logic_vector( 5 downto 0);
+signal tick_cnt       : std_logic_vector(16 downto 0);
 signal wave_cnt       : std_logic_vector(15 downto 0);
 signal wave_period    : std_logic;
 signal start_bytes    : std_logic_vector(7 downto 0);
@@ -112,7 +111,6 @@ begin
 		start_bytes <= X"00";
 		tzx_state <= TZX_HEADER;
 		pulse_len <= (others => '0');
-		tick_cnt <= (others => '0');
 		wave_cnt <= (others => '0');
 		motor_counter <= (others => '0');
 		wave_period <= '0';
@@ -139,10 +137,10 @@ begin
 			--cass_read <= '1';
 		end if;	
 
-		if playing = '1' and pulse_len /= 0 then
-			tick_cnt <= tick_cnt + 1;
-			if tick_cnt = TZX_3M5_DIV - 1 then
-				tick_cnt <= (others => '0');
+		if pulse_len /= 0 then
+			tick_cnt <= tick_cnt + 3500;
+			if tick_cnt >= TZX_MS then
+				tick_cnt <= tick_cnt - TZX_MS;
 				wave_cnt <= wave_cnt + 1;
 				if wave_cnt = pulse_len then
 					wave_cnt <= (others => '0');
