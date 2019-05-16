@@ -177,20 +177,21 @@ begin
 			when TZX_NEWBLOCK =>
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
-
-				case tap_fifo_do is
-				when x"20" => tzx_state <= TZX_PAUSE;
-				when x"33" => tzx_state <= TZX_HWTYPE;
-				when x"30" => tzx_state <= TZX_TEXT;
-				when x"21" => tzx_state <= TZX_TEXT; -- Group start
-				when x"22" => null; -- Group end
-				when x"12" => tzx_state <= TZX_TONE;
-				when x"13" => tzx_state <= TZX_PULSES;
-				when x"14" => tzx_state <= TZX_DATA;
-				when x"10" => tzx_state <= TZX_NORMAL;
-				when x"11" => tzx_state <= TZX_TURBO;
-				when others => null;
-				end case;
+				if tap_fifo_empty = '0' then
+					case tap_fifo_do is
+					when x"20" => tzx_state <= TZX_PAUSE;
+					when x"33" => tzx_state <= TZX_HWTYPE;
+					when x"30" => tzx_state <= TZX_TEXT;
+					when x"21" => tzx_state <= TZX_TEXT; -- Group start
+					when x"22" => null; -- Group end
+					when x"12" => tzx_state <= TZX_TONE;
+					when x"13" => tzx_state <= TZX_PULSES;
+					when x"14" => tzx_state <= TZX_DATA;
+					when x"10" => tzx_state <= TZX_NORMAL;
+					when x"11" => tzx_state <= TZX_TURBO;
+					when others => null;
+					end case;
+				end if;
 
 			when TZX_PAUSE =>
 				tzx_offset <= tzx_offset + 1;
