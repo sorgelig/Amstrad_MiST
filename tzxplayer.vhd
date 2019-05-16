@@ -45,7 +45,6 @@ signal tap_fifo_empty : std_logic;
 signal tick_cnt       : std_logic_vector(16 downto 0);
 signal wave_cnt       : std_logic_vector(15 downto 0);
 signal wave_period    : std_logic;
-signal start_bytes    : std_logic_vector(7 downto 0);
 signal skip_bytes     : std_logic;
 signal playing        : std_logic;  -- 1 = tap or wav file is playing
 signal bit_cnt        : std_logic_vector(2 downto 0);
@@ -108,7 +107,7 @@ begin
 
 	if restart_tape = '1' then
 
-		start_bytes <= X"00";
+		tzx_offset <= (others => '0');
 		tzx_state <= TZX_HEADER;
 		pulse_len <= (others => '0');
 		wave_cnt <= (others => '0');
@@ -168,9 +167,8 @@ begin
 			case tzx_state is
 			when TZX_HEADER =>
 				cass_read <= '1';
-				if start_bytes < X"0A" then
-					start_bytes <= start_bytes + 1;
-				else
+				tzx_offset <= tzx_offset + 1;
+				if tzx_offset = x"0B" then -- skip 9 bytes, offset lags 2
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
