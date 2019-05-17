@@ -13,8 +13,7 @@ use ieee.numeric_std.all;
 
 entity tzxplayer is
 generic (
-	TZX_MS : integer := 64000;   -- periods for one milliseconds
-	TZX_3M5_DIV : integer := 18  -- divide to 3.5 MHz
+	TZX_MS : integer := 64000       -- periods for one milliseconds
 );
 port(
 	clk             : in std_logic;
@@ -43,10 +42,9 @@ constant NORMAL_PILOT_PULSES : integer := 4096;
 signal tap_fifo_do    : std_logic_vector(7 downto 0);
 signal tap_fifo_rdreq : std_logic;
 signal tap_fifo_empty : std_logic;
-signal tick_cnt       : std_logic_vector( 5 downto 0);
+signal tick_cnt       : std_logic_vector(16 downto 0);
 signal wave_cnt       : std_logic_vector(15 downto 0);
 signal wave_period    : std_logic;
-signal start_bytes    : std_logic_vector(7 downto 0);
 signal skip_bytes     : std_logic;
 signal playing        : std_logic;  -- 1 = tap or wav file is playing
 signal bit_cnt        : std_logic_vector(2 downto 0);
@@ -58,6 +56,7 @@ type tzx_state_t is (
 	TZX_PAUSE2,
 	TZX_HWTYPE,
 	TZX_TEXT,
+	TZX_MESSAGE,
 	TZX_TONE,
 	TZX_PULSES,
 	TZX_DATA,
@@ -85,7 +84,9 @@ signal pilot_pulses   : std_logic_vector(15 downto 0);
 signal last_byte_bits : std_logic_vector( 3 downto 0);
 signal data_len       : std_logic_vector(23 downto 0);
 signal pulse_len      : std_logic_vector(15 downto 0);
-signal half_period    : std_logic;
+signal end_period     : std_logic;
+signal cass_motor_D   : std_logic;
+signal motor_counter  : std_logic_vector(21 downto 0);
 
 begin
 -- for wav mode use large depth fifo (eg 512 x 32bits)
@@ -107,11 +108,11 @@ begin
 
 	if restart_tape = '1' then
 
-		start_bytes <= X"00";
+		tzx_offset <= (others => '0');
 		tzx_state <= TZX_HEADER;
 		pulse_len <= (others => '0');
-		tick_cnt <= (others => '0');
 		wave_cnt <= (others => '0');
+		motor_counter <= (others => '0');
 		wave_period <= '0';
 		playing <= '0';
 
@@ -120,22 +121,32 @@ begin
 
 	elsif rising_edge(clk) then
 
-		playing <= cass_motor;
+		-- simulate tape motor momentum
+		-- don't change the playing state if the motor is switched in 50 ms
+		-- Opera Soft K17 protection needs this!
+		cass_motor_D <= cass_motor;
+		if cass_motor_D /= cass_motor then
+			motor_counter <= CONV_STD_LOGIC_VECTOR(50*TZX_MS, motor_counter'length);
+		elsif motor_counter /= 0 then
+			motor_counter <= motor_counter - 1;
+		else
+			playing <= cass_motor;
+		end if;
 
 		if playing = '0' then
 			--cass_read <= '1';
 		end if;	
 
-		if playing = '1' and pulse_len /= 0 then
-			tick_cnt <= tick_cnt + 1;
-			if tick_cnt = TZX_3M5_DIV - 1 then
-				tick_cnt <= (others => '0');
+		if pulse_len /= 0 then
+			tick_cnt <= tick_cnt + 3500;
+			if tick_cnt >= TZX_MS then
+				tick_cnt <= tick_cnt - TZX_MS;
 				wave_cnt <= wave_cnt + 1;
 				if wave_cnt = pulse_len then
 					wave_cnt <= (others => '0');
 					cass_read <= wave_period;
 					wave_period <= not wave_period;
-					if wave_period = half_period then
+					if wave_period = end_period then
 						pulse_len <= (others => '0');
 					end if;
 				end if;
@@ -157,30 +168,30 @@ begin
 			case tzx_state is
 			when TZX_HEADER =>
 				cass_read <= '1';
-				if start_bytes < X"0A" then
-					start_bytes <= start_bytes + 1;
-				else
+				tzx_offset <= tzx_offset + 1;
+				if tzx_offset = x"0B" then -- skip 9 bytes, offset lags 2
 					tzx_state <= TZX_NEWBLOCK;
 				end if;
 
 			when TZX_NEWBLOCK =>
-				half_period <= not wave_period;
 				tzx_offset <= (others=>'0');
 				ms_counter <= (others=>'0');
-
-				case tap_fifo_do is
-				when x"20" => tzx_state <= TZX_PAUSE;
-				when x"33" => tzx_state <= TZX_HWTYPE;
-				when x"30" => tzx_state <= TZX_TEXT;
-				when x"21" => tzx_state <= TZX_TEXT; -- Group start
-				when x"22" => null; -- Group end
-				when x"12" => tzx_state <= TZX_TONE;
-				when x"13" => tzx_state <= TZX_PULSES;
-				when x"14" => tzx_state <= TZX_DATA;
-				when x"10" => tzx_state <= TZX_NORMAL;
-				when x"11" => tzx_state <= TZX_TURBO;
-				when others => null;
-				end case;
+				if tap_fifo_empty = '0' then
+					case tap_fifo_do is
+					when x"20" => tzx_state <= TZX_PAUSE;
+					when x"33" => tzx_state <= TZX_HWTYPE;
+					when x"30" => tzx_state <= TZX_TEXT;
+					when x"31" => tzx_state <= TZX_MESSAGE;
+					when x"21" => tzx_state <= TZX_TEXT; -- Group start
+					when x"22" => null; -- Group end
+					when x"12" => tzx_state <= TZX_TONE;
+					when x"13" => tzx_state <= TZX_PULSES;
+					when x"14" => tzx_state <= TZX_DATA;
+					when x"10" => tzx_state <= TZX_NORMAL;
+					when x"11" => tzx_state <= TZX_TURBO;
+					when others => null;
+					end case;
+				end if;
 
 			when TZX_PAUSE =>
 				tzx_offset <= tzx_offset + 1;
@@ -216,6 +227,10 @@ begin
 					end if;
 				end if;
 
+			when TZX_MESSAGE =>
+				-- skip display time, then then same as TEXT DESRCRIPTION
+				tzx_state <= TZX_TEXT;
+
 			when TZX_TEXT =>
 				tzx_offset <= tzx_offset + 1;
 				if    tzx_offset = x"00" then data_len( 7 downto  0) <= tap_fifo_do;
@@ -240,7 +255,7 @@ begin
 						tzx_state <= TZX_NEWBLOCK;
 					else
 						pilot_pulses <= pilot_pulses - 1;
-						half_period <= wave_period;
+						end_period <= wave_period;
 						pulse_len <= pilot_l;
 					end if;
 				end if;
@@ -252,7 +267,7 @@ begin
 				elsif tzx_offset = x"01" then one_l( 7 downto 0) <= tap_fifo_do;
 				elsif tzx_offset = x"02" then
 					tap_fifo_rdreq <= '0';
-					half_period <= wave_period;
+					end_period <= wave_period;
 					pulse_len <= tap_fifo_do & one_l( 7 downto 0);
 				elsif tzx_offset = x"03" then
 					if data_len(7 downto 0) = x"01" then
@@ -326,6 +341,7 @@ begin
 
 			when TZX_PLAY_TONE =>
 				tap_fifo_rdreq <= '0';
+				end_period <= not wave_period;
 				pulse_len <= pilot_l;
 				if pilot_pulses /= 0 then
 					pilot_pulses <= pilot_pulses - 1;
@@ -338,11 +354,13 @@ begin
 
 			when TZX_PLAY_SYNC1 =>
 				tap_fifo_rdreq <= '0';
+				end_period <= not wave_period;
 				pulse_len <= sync1_l;
 				tzx_state <= TZX_PLAY_SYNC2;
 
 			when TZX_PLAY_SYNC2 =>
 				tap_fifo_rdreq <= '0';
+				end_period <= not wave_period;
 				pulse_len <= sync2_l;
 				tzx_state <= TZX_PLAY_TAPBLOCK;
 
@@ -358,6 +376,7 @@ begin
 					data_len <= data_len - 1;
 					tzx_state <= TZX_PLAY_TAPBLOCK3;
 				end if;
+				end_period <= not wave_period;
 				if tap_fifo_do(CONV_INTEGER(bit_cnt)) = '0' then
 					pulse_len <= zero_l;
 				else
