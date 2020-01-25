@@ -91,7 +91,7 @@ reg ce_4n;
 reg ce_4p, ce_ref, ce_u765;
 reg ce_boot;
 reg ce_16;
-always @(negedge clk_sys) begin
+always @(posedge clk_sys) begin
 	reg [3:0] div = 0;
 
 	div     <= div + 1'd1;
