@@ -40,6 +40,8 @@ module UM6845R
 	output     [4:0] RA
 );
 
+/* verilator lint_off WIDTH */
+
 assign FIELD = ~field & interlace[0];
 
 assign MA = row_addr + hcc;
