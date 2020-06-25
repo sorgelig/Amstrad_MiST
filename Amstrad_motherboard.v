@@ -40,8 +40,8 @@ module Amstrad_motherboard
 	output        tape_out,
 	output        tape_motor,
 
-	output  [7:0] audio_l,
-	output  [7:0] audio_r,
+	output  [9:0] audio_l,
+	output  [9:0] audio_r,
 
 	input         pal,
 	output        ce_pix,
@@ -224,30 +224,25 @@ i8255 PPI
 assign tape_motor = portC[4];
 assign tape_out   = portC[5];
 
-assign audio_l = {1'b0, ch_a[7:1]} + {2'b00, ch_b[7:2]};
-assign audio_r = {1'b0, ch_c[7:1]} + {2'b00, ch_b[7:2]};
-
 wire [7:0] ch_a, ch_b, ch_c;
-YM2149 PSG
+YM2149 #(1'b0) PSG
 (
-	.RESET(reset),
+	.RESET_L(~reset),
 
 	.CLK(clk),
-	.CE((phase == 0) & ce_4n),
-	.SEL(0),
-	.MODE(0),
+	.ENA((phase == 0) & ce_4n),
 
-	.BC(portC[6]),
-	.BDIR(portC[7]),
-	.DI(portAout),
-	.DO(portAin),
+	.I_BC1(portC[6]),
+	.I_BDIR(portC[7]),
+	.I_DA(portAout),
+	.O_DA(portAin),
+	.I_STEREO(1'b0),
 
-	.CHANNEL_A(ch_a),
-	.CHANNEL_B(ch_b),
-	.CHANNEL_C(ch_c),
+	.O_AUDIO_L(audio_l),
+	.O_AUDIO_R(audio_r),
 
-	.IOA_in(kbd_out),
-	.IOB_in(8'hFF)
+	.I_IOA(kbd_out),
+	.I_IOB(8'hFF)
 );
 
 wire [7:0] kbd_out;

@@ -701,22 +701,22 @@ assign VGA_VS = (forced_scandoubler & ~ypbpr) ? ~MVS : 1'b1;
 
 //////////////////////////////////////////////////////////////////////
 
-wire [7:0] audio_l, audio_r;
+wire [9:0] audio_l, audio_r;
 wire       tape_sound = status[20];
 
-sigma_delta_dac #(7) dac_l
+sigma_delta_dac #(10) dac_l
 (
-	.CLK(clk_sys & ce_16),
+	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin(audio_l - audio_l[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_l} + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
-sigma_delta_dac #(7) dac_r
+sigma_delta_dac #(10) dac_r
 (
-	.CLK(clk_sys & ce_16),
+	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin(audio_r - audio_r[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_r} + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 
