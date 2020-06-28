@@ -29,9 +29,6 @@ set_multicycle_path -to [get_ports {VGA_*}] -hold 2
 set_multicycle_path -from {Amstrad_motherboard:motherboard|T80pa:CPU|T80:u0|*} -setup 2
 set_multicycle_path -from {Amstrad_motherboard:motherboard|T80pa:CPU|T80:u0|*} -hold 1
 
-set_multicycle_path -from {video_mixer:video_mixer|scandoubler:sd|Hq2x:Hq2x|*} -setup 2
-set_multicycle_path -from {video_mixer:video_mixer|scandoubler:sd|Hq2x:Hq2x|*} -hold 1
-
 set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -setup 4
 set_multicycle_path -to {u765:u765|i_rpm_time[*][*][*]} -hold 3
 

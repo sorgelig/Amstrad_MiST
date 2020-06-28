@@ -28,8 +28,8 @@ module Amstrad_MMU
 	input        reset,
 
 	input        ram64k,
+	input        romen_n,
 
-	input        mem_WR,
 	input        io_WR,
 
 	input  [7:0] D,
@@ -37,8 +37,6 @@ module Amstrad_MMU
 	output reg [22:0] ram_A
 );
 
-reg lowerROMen;
-reg upperROMen;
 reg [2:0] RAMmap;
 reg [2:0] RAMpage;
 reg [7:0] ROMbank;
@@ -50,17 +48,11 @@ always @(posedge CLK) begin
 		ROMbank    <=0;
 		RAMmap     <=0;
 		RAMpage    <=0;
-		lowerROMen <=1;
-		upperROMen <=1;
 	end
 	else begin
 		old_wr <= io_WR;
 		if (~old_wr & io_WR) begin
-			if (A[15:14] == 'b01 && D[7:6] == 'b10) begin //7Fxx gate array RMR
-				lowerROMen <= ~D[2];
-				upperROMen <= ~D[3];
-			end
-			
+
 			if (~A[15] && D[7:6] == 'b11 && ~ram64k) begin //7Fxx PAL MMR
 				RAMpage <= D[5:3];
 				RAMmap  <= D[2:0];
@@ -72,7 +64,7 @@ always @(posedge CLK) begin
 end
 
 always @(*) begin
-	casex({lowerROMen&~mem_WR&(!A[15:14]), upperROMen&~mem_WR&(&A[15:14]), RAMmap, A[15:14]})
+	casex({~romen_n&(!A[15:14]), ~romen_n&(&A[15:14]), RAMmap, A[15:14]})
 		'b1x_xxx_xx: ram_A[22:14] = 0;                // lower rom
 		'b01_xxx_xx: ram_A[22:14] = {1'b1,  ROMbank}; // upper rom
 		'b00_0x1_11,                                                      // map1&3 bank3
