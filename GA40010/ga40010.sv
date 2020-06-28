@@ -157,7 +157,7 @@ wire HSYNC_O_a, VSYNC_O_a, INT_N_a, HCNTLT28_a;
 syncgen syncgen(.*, .VSYNC_O(VSYNC_O_a), .HSYNC_O(HSYNC_O_a), .INT_N(INT_N_a), .HCNTLT28(HCNTLT28_a));
 wire MODE_SYNC = ~HSYNC_O;
 `endif
-wire HCNTLT28, MODE_SYNC_EN;
+wire HCNTLT28, mode_sync_en;
 syncgen_sync syncgen_sync(.*);
 assign VBLANK = HCNTLT28;
 
@@ -241,10 +241,6 @@ video video(
 );
 `endif
 
-wire mode_sync_en = ~HSYNC_O & hsync_o_d;
-reg hsync_o_d;
-always @(posedge clk) hsync_o_d <= HSYNC_O;
-
 video video_sync(
 	.clk(clk),
 	.cen_16(cen_16),
@@ -252,10 +248,10 @@ video video_sync(
 	.DISPEN_BUF(DISPEN_BUF),
 	.PHI_N(PHI_N),
 	.MODE({mode1, mode0}),
-//	.MODE_SYNC(clk),
-//	.MODE_SYNC_EN(mode_sync_en),
-	.MODE_SYNC(~HSYNC_O),
-	.MODE_SYNC_EN(1'b1),
+	.MODE_SYNC(clk),
+	.MODE_SYNC_EN(mode_sync_en),
+//	.MODE_SYNC(~HSYNC_O),
+//	.MODE_SYNC_EN(1'b1),
 	.VIDEO(VIDEO_BUF),
 	.BORDER(border),
 	.INKR(inkr),
