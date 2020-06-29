@@ -70,7 +70,7 @@ module Amstrad_motherboard
 
 wire crtc_shift;
 
-assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]} - (sync_filter ? crtc_shift : 1'b0);
+assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
 
 assign io_rd = ~(RD_n | IORQ_n);
 assign io_wr = ~(WR_n | IORQ_n);
@@ -117,10 +117,11 @@ T80pa CPU
 	.wait_n(ready | (IORQ_n & MREQ_n) | no_wait) // workaround a bug in T80pa: should wait only in memory or io cycles
 );
 
-wire crtc_hs, crtc_vs, crtc_de;
+wire        crtc_hs, crtc_vs, crtc_de;
 wire [13:0] MA;
 wire  [4:0] RA;
 wire  [7:0] crtc_dout;
+
 UM6845R CRTC
 (
 	.CLOCK(clk),
@@ -146,6 +147,7 @@ UM6845R CRTC
 
 reg vram_bs;
 reg [7:0] vram_d;
+reg [7:0] vram_din_shift;
 always @(posedge clk) begin
 	// simulate two 8-bit fetches in the vram cycle
 	reg cas_n_old;
@@ -153,7 +155,12 @@ always @(posedge clk) begin
 	if (!cpu_n) vram_bs <= 0;
 	else begin
 		if (!ras_n & !cas_n_old & cas_n) vram_bs <= 1;
-		if (!ras_n & !cas_n) vram_d <= vram_bs ? vram_din[15:8] : vram_din[7:0];
+		if (!ras_n & !cas_n)
+			if (sync_filter & crtc_shift) begin
+				if (vram_bs) vram_din_shift <= crtc_de ? vram_din[15:8] : 8'd0;
+				vram_d <= vram_bs ? vram_din[7:0] : vram_din_shift;
+			end else
+				vram_d <= vram_bs ? vram_din[15:8] : vram_din[7:0];
 	end
 end
 
