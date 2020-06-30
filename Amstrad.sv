@@ -72,7 +72,7 @@ localparam CONF_STR = {
 	"P2OI,Joysticks swap,No,Yes;",
 	"P2OJ,Mouse,Disabled,Enabled;",
 	"P3OEF,Multiface 2,Enabled,Hidden,Disabled;",
-	"P3O6,CPU timings,Original,Fast;",
+//	"P3O6,CPU timings,Original,Fast;",
 	"P3OGH,FDC,Original,Fast,Disabled;",
 	"P3O5,Distributor,Amstrad,Schneider;",
 	"P3O4,Model,CPC 6128,CPC 664;",
@@ -83,7 +83,7 @@ wire [1:0] st_scanlines = status[10:9];
 wire [2:0] st_palette = status[13:11];
 wire       st_sync_filter = status[3];
 wire       st_joyswap = status[18];
-wire       st_nowait = status[6];
+wire       st_nowait = 0;//status[6]; // not working with the original GA
 wire       st_cpc664 = status[4];
 wire       st_crtc = status[2];
 wire       st_distributor = status[5];
