@@ -61,19 +61,22 @@ localparam CONF_STR = {
 	"S1,DSK,Mount Disk B:;",
 	"F,E??,Load expansion;",
 	"F,CDT,Load;",
-	"OK,Tape sound,Disabled,Enabled;",
-	"O9A,Scandoubler Fx,None,CRT 25%,CRT 50%;CRT 75%;",
-	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
-	"O2,CRTC,Type 1,Type 0;",
-	"O3,Sync signals,Original,Filtered;",
-	"OI,Joysticks swap,No,Yes;",
-	"OJ,Mouse,Enabled,Disabled;",
-	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
-	"O6,CPU timings,Original,Fast;",
-	"OGH,FDC,Original,Fast,Disabled;",
-	"O5,Distributor,Amstrad,Schneider;",
-	"O4,Model,CPC 6128,CPC 664;",
-	"T0,Reset & apply model;"
+	"P1,Video & Audio;",
+	"P2,Controls;",
+	"P3,System;",
+	"P1O9A,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
+	"P1OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
+	"P1O2,CRTC,Type 1,Type 0;",
+	"P1O3,Sync signals,Original,Filtered;",
+	"P1OK,Tape sound,Disabled,Enabled;",
+	"P2OI,Joysticks swap,No,Yes;",
+	"P2OJ,Mouse,Disabled,Enabled;",
+	"P3OEF,Multiface 2,Enabled,Hidden,Disabled;",
+	"P3O6,CPU timings,Original,Fast;",
+	"P3OGH,FDC,Original,Fast,Disabled;",
+	"P3O5,Distributor,Amstrad,Schneider;",
+	"P3O4,Model,CPC 6128,CPC 664;",
+	"P3T0,Reset & apply model;"
 };
 
 wire [1:0] st_scanlines = status[10:9];
@@ -87,7 +90,7 @@ wire       st_distributor = status[5];
 wire [1:0] st_fdc = status[17:16];
 wire       st_tape_sound = status[20];
 wire [1:0] st_mf2 = status[15:14];
-wire       st_mouse_en = ~status[19];
+wire       st_mouse_en = status[19];
 
 //////////////////////////////////////////////////////////////////////////
 
