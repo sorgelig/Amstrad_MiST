@@ -55,6 +55,7 @@ module Amstrad_motherboard
 	input  [15:0] vram_din,
 	output [14:0] vram_addr,
 
+	input [255:0] rom_map,
 	input         ram64k,
 	output [22:0] mem_addr,
 	output        mem_rd,
@@ -237,6 +238,7 @@ Amstrad_MMU MMU
 	.reset(reset),
 	.ram64k(ram64k),
 	.romen_n(romen_n),
+	.rom_map(rom_map),
 	.A(A),
 	.D(D),
 	.io_WR(io_wr),

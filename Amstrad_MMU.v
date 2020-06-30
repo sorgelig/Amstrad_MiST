@@ -29,6 +29,7 @@ module Amstrad_MMU
 
 	input        ram64k,
 	input        romen_n,
+	input [255:0]rom_map,
 
 	input        io_WR,
 
@@ -58,7 +59,9 @@ always @(posedge CLK) begin
 				RAMmap  <= D[2:0];
 			end
 
-			if (~A[13]) ROMbank <= D;
+			// As the ROM selection is built into the expansion cartridges,
+			// activate it only, when the appropriate ROM is present.
+			if (~A[13]) if (rom_map[D]) ROMbank <= D; else ROMbank <= 0;
 		end
 	end
 end
