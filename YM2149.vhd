@@ -57,12 +57,12 @@
 
 library ieee;
   use ieee.std_logic_1164.all;
-  use ieee.std_logic_arith.all;
   use ieee.std_logic_unsigned.all;
+  use ieee.numeric_std.all;
 
 entity YM2149 is
   generic (
-	MIXER_VOLTABLE      : std_logic := '0'
+    MIXER_VOLTABLE      : std_logic := '0'
   );
   port (
   -- data bus
@@ -205,10 +205,8 @@ begin
     if (RESET_L = '0') then
       addr <= (others => '0');
     elsif rising_edge(CLK) then
-      if (ENA = '1') then
-        if (busctrl_addr = '1') then
-          addr <= I_DA;
-        end if;
+      if (busctrl_addr = '1') then
+        addr <= I_DA;
       end if;
     end if;
   end process;
@@ -219,28 +217,11 @@ begin
       reg <= (others => (others => '0'));
       env_reset <= '1';
     elsif rising_edge(CLK) then
-      if (ENA = '1') then
-        env_reset <= '0';
-        if (busctrl_we = '1') then
-          case addr(3 downto 0) is
-            when x"0" => reg(0)  <= I_DA;
-            when x"1" => reg(1)  <= I_DA;
-            when x"2" => reg(2)  <= I_DA;
-            when x"3" => reg(3)  <= I_DA;
-            when x"4" => reg(4)  <= I_DA;
-            when x"5" => reg(5)  <= I_DA;
-            when x"6" => reg(6)  <= I_DA;
-            when x"7" => reg(7)  <= I_DA;
-            when x"8" => reg(8)  <= I_DA;
-            when x"9" => reg(9)  <= I_DA;
-            when x"A" => reg(10) <= I_DA;
-            when x"B" => reg(11) <= I_DA;
-            when x"C" => reg(12) <= I_DA;
-            when x"D" => reg(13) <= I_DA; env_reset <= '1';
-            when x"E" => reg(14) <= I_DA;
-            when x"F" => reg(15) <= I_DA;
-            when others => null;
-          end case;
+      env_reset <= '0';
+      if (busctrl_we = '1') then
+        reg(to_integer(unsigned(addr(3 downto 0)))) <= I_DA;
+        if addr(3 downto 0) = x"D" then
+          env_reset <= '1';
         end if;
       end if;
     end if;
@@ -605,11 +586,12 @@ begin
           vol_r <= vol_r + dac_amp;
         when "00" => -- Channel A
           if I_STEREO = '0' then
-            vol_mixer_l <= vol_l + dac_amp;
-          else
-            vol_mixer_l <= vol_l;
+            vol_r <= vol_r + dac_amp;
           end if;
-          vol_mixer_r <= vol_r + dac_amp;
+          vol_l <= vol_l + dac_amp;
+        when "11" =>
+          vol_mixer_l <= vol_l;
+          vol_mixer_r <= vol_r;
         when others => null;
         end case;
       end if;
@@ -671,7 +653,7 @@ begin
             vol_table_in_r(11 downto 8) <= reg(10)(3 downto 0);
           else
             vol_table_in_l(11 downto 8) <= env_vol(4 downto 1);
-            vol_table_in_r(11 downto 8) <= reg(10)(3 downto 0);
+            vol_table_in_r(11 downto 8) <= env_vol(4 downto 1);
           end if;
         end if;
       end if;
@@ -686,12 +668,12 @@ begin
       ADDR_B      => vol_table_in_r,
       DATA_B      => vol_table_out_r
       );
-	end generate; -- VOLTABLE
+  end generate; -- VOLTABLE
 
   NO_VOLTABLE: if MIXER_VOLTABLE = '0' generate
     vol_table_out_l <= (others => '0');
     vol_table_out_r <= (others => '0');
-	end generate;
+  end generate;
 
   -- mixed audio output
 
@@ -702,8 +684,8 @@ begin
     wait until rising_edge(CLK);
 
     if (RESET_L = '0') then
-      O_AUDIO_L <= "0000000000";
-      O_AUDIO_R <= "0000000000";
+      O_AUDIO_L <= (others => '0');
+      O_AUDIO_R <= (others => '0');
     else
       if (MIXER_VOLTABLE = '1') then
         O_AUDIO_L <= vol_table_out_l;
@@ -728,9 +710,7 @@ begin
   p_io_ports_inreg       : process
   begin
     wait until rising_edge(CLK);
-    if (ENA = '1') then -- resync
-      ioa_inreg <= I_IOA;
-      iob_inreg <= I_IOB;
-    end if;
+    ioa_inreg <= I_IOA;
+    iob_inreg <= I_IOB;
   end process;
 end architecture RTL;
