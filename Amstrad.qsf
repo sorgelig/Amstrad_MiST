@@ -284,7 +284,7 @@ set_global_assignment -name SEED 1
 
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE output_files/cpu.stp
+set_global_assignment -name USE_SIGNALTAP_FILE output_files/newga.stp
 set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
 set_global_assignment -name SMART_RECOMPILE ON
 set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to VGA_HS
@@ -297,7 +297,7 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SPI_DO
 set_global_assignment -name QIP_FILE pll.qip
 set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
 set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
-set_global_assignment -name QIP_FILE t80/T80.qip
+set_global_assignment -name QIP_FILE T80/T80.qip
 set_global_assignment -name SYSTEMVERILOG_FILE GA40010/ga40010.sv
 set_global_assignment -name VERILOG_FILE GA40010/syncgen_sync.v
 set_global_assignment -name VERILOG_FILE GA40010/casgen_sync.v
