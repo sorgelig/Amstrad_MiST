@@ -40,6 +40,7 @@ module Amstrad_motherboard
 	output        tape_out,
 	output        tape_motor,
 
+	input         stereo,
 	output  [9:0] audio_l,
 	output  [9:0] audio_r,
 
@@ -285,7 +286,7 @@ YM2149 #(1'b0) PSG
 	.I_BDIR(portC[7]),
 	.I_DA(portAout),
 	.O_DA(portAin),
-	.I_STEREO(1'b0),
+	.I_STEREO(stereo),
 
 	.O_AUDIO_L(audio_l),
 	.O_AUDIO_R(audio_r),

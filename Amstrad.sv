@@ -69,6 +69,7 @@ localparam CONF_STR = {
 	"P1O2,CRTC,Type 1,Type 0;",
 	"P1O3,Sync signals,Original,Filtered;",
 	"P1OK,Tape sound,Disabled,Enabled;",
+	"P1OL,Sound output,Stereo,Mono;",
 	"P2OI,Joysticks swap,No,Yes;",
 	"P2OJ,Mouse,Disabled,Enabled;",
 	"P3OEF,Multiface 2,Enabled,Hidden,Disabled;",
@@ -89,6 +90,7 @@ wire       st_crtc = status[2];
 wire       st_distributor = status[5];
 wire [1:0] st_fdc = status[17:16];
 wire       st_tape_sound = status[20];
+wire       st_stereo = ~status[21];
 wire [1:0] st_mf2 = status[15:14];
 wire       st_mouse_en = status[19];
 
@@ -613,6 +615,7 @@ Amstrad_motherboard motherboard
 	.tape_out(tape_rec),
 	.tape_motor(tape_motor),
 
+	.stereo(st_stereo),
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
