@@ -4,6 +4,7 @@ This core has been started as a port of [CoreAmstrad by Renaud Hélias](https://
 
 ## Features
 * Precise CPU timings including proper contention model.
+* Cycle-exact Gate Array, created from [reverse engineered decapped original Amstrad 40010 chip](https://www.cpcwiki.eu/forum/amstrad-cpc-hardware/gate-array-decapped!/msg170713/#msg170713).
 * Precise CRTC model supporting many tricks of Types 1 and 0.
 * 2 disk drives
 * Disk write support.
@@ -46,8 +47,11 @@ Every page is 16KB. It's possible to load larger ROM. In this case every 16KB bl
 * eZ0 - LowROM(OS) + Page 0(Basic) + subsequent pages depending on size.
 
 ### Notes
-You can load several expansions. With every load the system will reboot. System ROM also can be replaced the same way.
+- You can load several expansions. With every load the system will reboot. System ROM also can be replaced the same way.
 To restore original ROM you have to reload the core (Alt-F12).
+- Some demos sets up the CRTC to emit sync signals which are only compatible with the original Amstrad monitor, or CRT displays.
+Enabling "Video & Audio => Sync signals: Filtered" tries to change these signals to be more LCD compatible,
+however it doesn't work in every case.
 
 ### MiSTer specific
 You can define boot extensions to automatically load at start of core. Use following name rules:
