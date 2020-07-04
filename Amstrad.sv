@@ -680,7 +680,7 @@ color_mix color_mix
 	.R_out(R)
 );
 
-mist_video #(.SD_HCNT_WIDTH(10)) mist_video (
+mist_video #(.SD_HCNT_WIDTH(10), .OSD_X_OFFSET(10'd18)) mist_video (
 	.clk_sys     ( clk_sys    ),
 
 	// OSD SPI interface
