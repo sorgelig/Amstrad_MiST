@@ -71,56 +71,69 @@ localparam NO_WRITE_BURST = 1'b1;   // 0= write burst enabled, 1=only single acc
 
 localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, BURST_LENGTH}; 
 
-localparam STATE_IDLE  = 3'd0;   // first state in cycle
-localparam STATE_START = 3'd1;   // state in which a new command can be started
-localparam STATE_CONT  = STATE_START  + RASCAS_DELAY; // 3 command can be continued
+localparam STATE_START = 3'd0;   // state in which a new command can be started
+localparam STATE_CONT  = STATE_START  + RASCAS_DELAY; // 2 command can be continued
+localparam STATE_READ  = STATE_CONT + CAS_LATENCY + 2'd2; // 6 data ready
 localparam STATE_LAST  = 3'd7;   // last state in cycle
 
 reg  [2:0] q;
-reg [22:0] a;
-reg        wr;
-reg        ram_req=0;
-reg        vram_req=0;
-reg        tape_req=0;
+reg [22:0] a, addr_next;
+reg        wr, wr_next;
+reg        ram_req=0, ram_req_next;
+reg        vram_req=0, vram_req_next;
+reg        tape_req=0, tape_req_next;
+
+reg [22:0] old_addr;
+reg old_rd, old_we;
 
 // access manager
 always @(posedge clk) begin
-	reg [22:0] old_addr;
-	reg old_rd, old_we, old_ref;
+	reg old_ref;
 
 	old_rd<=oe;
 	old_we<=we;
 	old_ref<=clkref;
 
-	if(q==STATE_IDLE) begin
-		ram_req <= 0;
-		vram_req <= 0;
-		tape_req <= 0;
-		wr <= 0;
+	q <= q + 3'd1;
+	if(~old_ref & clkref) q <= 0;
 
-		if((~old_rd & oe) | (~old_we & we)) begin
-			ram_req <= 1;
-			wr <= we;
-			a <= addr;
-		end
-		else if(old_addr[15:1] != vram_addr[15:1]) begin
-			vram_req <= 1;
-			old_addr <= vram_addr;
-			a <= vram_addr;
-		end
-		else begin
-			// The IO Controller advances in about 5-6 SDRAM cycles, thus
-			// no tape read/write should skipped even in this lowest priority
-			if(tape_rd | tape_wr) begin
-				tape_req <= 1;
-				wr <= tape_wr;
-				a <= tape_addr;
-			end
+	if (q == STATE_START) begin
+		ram_req <= ram_req_next;
+		vram_req <= vram_req_next;
+		tape_req <= tape_req_next;
+		wr <= wr_next;
+		a <= addr_next;
+		if (vram_req_next) old_addr <= vram_addr;
+	end
+end
+
+always @(*) begin
+
+	ram_req_next = 0;
+	vram_req_next = 0;
+	tape_req_next = 0;
+	wr_next = 0;
+	addr_next = 0;
+
+	if((~old_rd & oe) | (~old_we & we)) begin
+		ram_req_next = 1;
+		wr_next = we;
+		addr_next = addr;
+	end
+	else if(old_addr[15:1] != vram_addr[15:1]) begin
+		vram_req_next = 1;
+		addr_next = vram_addr;
+	end
+	else begin
+		// The IO Controller advances in about 5-6 SDRAM cycles, thus
+		// no tape read/write should skipped even in this lowest priority
+		if(tape_rd | tape_wr) begin
+			tape_req_next = 1;
+			wr_next = tape_wr;
+			addr_next = tape_addr;
 		end
 	end
 
-	q <= q + 3'd1;
-	if(~old_ref & clkref) q <= 0;
 end
 
 localparam MODE_NORMAL = 2'b00;
@@ -157,47 +170,58 @@ localparam CMD_PRECHARGE       = 4'b0010;
 localparam CMD_AUTO_REFRESH    = 4'b0001;
 localparam CMD_LOAD_MODE       = 4'b0000;
 
-reg [7:0] ram_dout;
+reg  [7:0] ram_dout;
+reg [15:0] sdram_din;
 
-// SDRAM state machines
+// SDRAM state machine
 always @(posedge clk) begin
-	casex({ram_req|vram_req|tape_req,wr,mode,q})
-		{2'b1X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
-		{2'b11, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_WRITE;
-		{2'b10, MODE_NORMAL, STATE_CONT }: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_READ;
-		{2'b0X, MODE_NORMAL, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
 
-		// init
-		{2'bXX,    MODE_LDM, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
-		{2'bXX,    MODE_PRE, STATE_START}: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
+	// latch input in Fast Input Register
+	sdram_din <= SDRAM_DQ;
+	SDRAM_DQ <= 16'bZZZZZZZZZZZZZZZZ;
+	{SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_NOP;
 
-		                          default: {SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_INHIBIT;
+	case ({mode,q})
+		{MODE_LDM, STATE_START}:
+		begin
+			{SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_LOAD_MODE;
+			SDRAM_A <= MODE;
+		end
+
+		{MODE_PRE, STATE_START}:
+		begin
+			{SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_PRECHARGE;
+			SDRAM_A <= 13'b0010000000000;
+		end
+
+		{MODE_NORMAL, STATE_START}:
+		if(ram_req_next | vram_req_next | tape_req_next) begin
+			{SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_ACTIVE;
+			SDRAM_A <= addr_next[21:9];
+			SDRAM_BA <= tape_req_next ? 2'b10 : bank;
+			if(ram_req_next & wr_next) ram_dout <= din;
+		end else
+			{SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_AUTO_REFRESH;
+
+		{MODE_NORMAL, STATE_CONT}:
+		if(ram_req | vram_req | tape_req) begin
+			SDRAM_A <= {4'b0010, a[22], a[8:1]};
+			{SDRAM_nCS, SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= wr ? CMD_WRITE : CMD_READ;
+			if (wr) SDRAM_DQ <= tape_req ? {tape_din, tape_din} : {din, din};
+			{SDRAM_DQMH,SDRAM_DQML} <= {~a[0] & wr,a[0] & wr};
+		end
+
+		{MODE_NORMAL, STATE_READ}:
+		begin
+			if (~wr & ram_req) ram_dout <= a[0] ? sdram_din[15:8] : sdram_din[7:0];
+			else if (vram_req) vram_dout <= sdram_din;
+			else if (~wr & tape_req) tape_dout <= a[0] ? sdram_din[15:8] : sdram_din[7:0];
+			if (tape_req) tape_ack <= ~tape_ack;
+		end
+
+		default: ;
+
 	endcase
-
-	casex({ram_req|vram_req|tape_req,mode,q})
-		{1'b1,  MODE_NORMAL, STATE_START}: SDRAM_A <= a[21:9];
-		{1'b1,  MODE_NORMAL, STATE_CONT }: SDRAM_A <= {4'b0010, a[22], a[8:1]};
-
-		// init
-		{1'bX,     MODE_LDM, STATE_START}: SDRAM_A <= MODE;
-		{1'bX,     MODE_PRE, STATE_START}: SDRAM_A <= 13'b0010000000000;
-
-		                          default: SDRAM_A <= 13'b0000000000000;
-	endcase
-
-	if(q == STATE_START) begin
-		SDRAM_BA <= (mode == MODE_NORMAL) ? (tape_req ? 2'b10 : bank) : 2'b00;
-		SDRAM_DQ <= wr ? (tape_req ? {tape_din, tape_din} : {din, din}) : 16'bZZZZZZZZZZZZZZZZ;
-		{SDRAM_DQMH,SDRAM_DQML} <= {~a[0] & wr,a[0] & wr};
-		if(ram_req & wr) ram_dout <= din;
-	end
-
-	if (q == STATE_CONT+CAS_LATENCY+1) begin
-		if (~wr & ram_req) ram_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
-		else if (vram_req) vram_dout<=SDRAM_DQ;
-		else if (~wr & tape_req) tape_dout <= a[0] ? SDRAM_DQ[15:8] : SDRAM_DQ[7:0];
-		if (tape_req) tape_ack <= ~tape_ack;
-	end
 end
 
 endmodule

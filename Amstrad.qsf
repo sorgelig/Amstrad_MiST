@@ -41,7 +41,7 @@ set_global_assignment -name DEVICE EP3C25E144C8
 set_global_assignment -name TOP_LEVEL_ENTITY Amstrad
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "10:48:12  FEBRUARY 22, 2015"
-set_global_assignment -name LAST_QUARTUS_VERSION 13.1
+set_global_assignment -name LAST_QUARTUS_VERSION "13.1 SP4.26"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
@@ -284,14 +284,28 @@ set_global_assignment -name SEED 1
 
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE output_files/cdt.stp
+set_global_assignment -name USE_SIGNALTAP_FILE output_files/newga.stp
 set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
 set_global_assignment -name SMART_RECOMPILE ON
-set_global_assignment -name QIP_FILE sys/sys.qip
-set_global_assignment -name QIP_FILE t80/T80.qip
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to VGA_HS
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to VGA_VS
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to UART_TX
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_L
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to AUDIO_R
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to LED
+set_instance_assignment -name CURRENT_STRENGTH_NEW 4MA -to SPI_DO
+set_global_assignment -name QIP_FILE pll.qip
+set_global_assignment -name QIP_FILE "mist-modules/mist.qip"
+set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
+set_global_assignment -name QIP_FILE T80/T80.qip
+set_global_assignment -name SYSTEMVERILOG_FILE GA40010/ga40010.sv
+set_global_assignment -name VERILOG_FILE GA40010/syncgen_sync.v
+set_global_assignment -name VERILOG_FILE GA40010/casgen_sync.v
+set_global_assignment -name SYSTEMVERILOG_FILE GA40010/video.sv
+set_global_assignment -name VERILOG_FILE GA40010/rslatch.v
+set_global_assignment -name VERILOG_FILE crt_filter.v
 set_global_assignment -name SYSTEMVERILOG_FILE u765.sv
 set_global_assignment -name VERILOG_FILE sdram.v
-set_global_assignment -name SYSTEMVERILOG_FILE YM2149.sv
 set_global_assignment -name VERILOG_FILE i8255.v
 set_global_assignment -name SYSTEMVERILOG_FILE color_mix.sv
 set_global_assignment -name SYSTEMVERILOG_FILE hid.sv
@@ -299,9 +313,13 @@ set_global_assignment -name VERILOG_FILE multiplay_mouse.v
 set_global_assignment -name VERILOG_FILE symbiface_mouse.v
 set_global_assignment -name VERILOG_FILE kempston_mouse.v
 set_global_assignment -name VERILOG_FILE UM6845R.v
-set_global_assignment -name SYSTEMVERILOG_FILE Amstrad_GA.sv
+set_global_assignment -name VHDL_FILE YM2149.vhd
+set_global_assignment -name VHDL_FILE vol_table_array.vhd
 set_global_assignment -name VERILOG_FILE Amstrad_MMU.v
 set_global_assignment -name VERILOG_FILE Amstrad_motherboard.v
 set_global_assignment -name SYSTEMVERILOG_FILE Amstrad.sv
 set_global_assignment -name VHDL_FILE tzxplayer.vhd
+set_global_assignment -name SDC_FILE Amstrad.sdc
+set_global_assignment -name SIGNALTAP_FILE output_files/newga.stp
+set_global_assignment -name SIGNALTAP_FILE output_files/cpu.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

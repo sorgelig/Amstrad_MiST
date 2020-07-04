@@ -61,19 +61,38 @@ localparam CONF_STR = {
 	"S1,DSK,Mount Disk B:;",
 	"F,E??,Load expansion;",
 	"F,CDT,Load;",
-	"OK,Tape sound,Disabled,Enabled;",
-	"O9A,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
-	"O2,CRTC,Type 1,Type 0;",
-	"OI,Joysticks swap,No,Yes;",
-	"OJ,Mouse,Enabled,Disabled;",
-	"OEF,Multiface 2,Enabled,Hidden,Disabled;",
-	"O6,CPU timings,Original,Fast;",
-	"OGH,FDC,Original,Fast,Disabled;",
-	"O5,Distributor,Amstrad,Schneider;",
-	"O4,Model,CPC 6128,CPC 664;",
-	"T0,Reset & apply model;"
+	"P1,Video & Audio;",
+	"P2,Controls;",
+	"P3,System;",
+	"P1O9A,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
+	"P1OBD,Display,Color(GA),Color(ASIC),Green,Amber,Cyan,White;",
+	"P1O2,CRTC,Type 1,Type 0;",
+	"P1O3,Sync signals,Original,Filtered;",
+	"P1OK,Tape sound,Disabled,Enabled;",
+	"P1OL,Sound output,Stereo,Mono;",
+	"P2OI,Joysticks swap,No,Yes;",
+	"P2OJ,Mouse,Disabled,Enabled;",
+	"P3OEF,Multiface 2,Enabled,Hidden,Disabled;",
+//	"P3O6,CPU timings,Original,Fast;",
+	"P3OGH,FDC,Original,Fast,Disabled;",
+	"P3O5,Distributor,Amstrad,Schneider;",
+	"P3O4,Model,CPC 6128,CPC 664;",
+	"P3T0,Reset & apply model;"
 };
+
+wire [1:0] st_scanlines = status[10:9];
+wire [2:0] st_palette = status[13:11];
+wire       st_sync_filter = status[3];
+wire       st_joyswap = status[18];
+wire       st_nowait = 0;//status[6]; // not working with the original GA
+wire       st_cpc664 = status[4];
+wire       st_crtc = status[2];
+wire       st_distributor = status[5];
+wire [1:0] st_fdc = status[17:16];
+wire       st_tape_sound = status[20];
+wire       st_stereo = ~status[21];
+wire [1:0] st_mf2 = status[15:14];
+wire       st_mouse_en = status[19];
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -87,17 +106,14 @@ pll pll
 	.locked(locked)
 );
 
-reg ce_4n;
-reg ce_4p, ce_ref, ce_u765;
+reg ce_ref, ce_u765;
 reg ce_boot;
 reg ce_16;
-always @(negedge clk_sys) begin
+always @(posedge clk_sys) begin
 	reg [3:0] div = 0;
 
 	div     <= div + 1'd1;
 
-	ce_4n   <= (div == 8);
-	ce_4p   <= !div;
 	ce_ref  <= !div;
 	ce_boot <= !div;
 
@@ -124,10 +140,21 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
-wire [31:0] ioctl_file_ext;
+wire [23:0] ioctl_file_ext;
 
-wire [10:0] ps2_key;
-wire [24:0] ps2_mouse;
+wire        key_strobe;
+wire        key_pressed;
+wire        key_extended;
+wire  [7:0] key_code;
+
+wire  [8:0] mouse_x;
+wire  [8:0] mouse_y;
+wire  [7:0] mouse_flags;
+wire        mouse_strobe;
+
+wire [24:0] ps2_mouse = { mouse_strobe_level, mouse_y[7:0], mouse_x[7:0], mouse_flags };
+reg         mouse_strobe_level;
+always @(posedge clk_sys) if (mouse_strobe) mouse_strobe_level <= ~mouse_strobe_level;
 
 wire  [1:0] buttons;
 wire  [6:0] joy1;
@@ -135,19 +162,19 @@ wire  [6:0] joy2;
 wire [31:0] status;
 
 wire        scandoubler_disable;
-wire        forced_scandoubler = ~scandoubler_disable;
 wire        ypbpr;
+wire        no_csync;
 
-mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
+user_io #(.STRLEN($size(CONF_STR)>>3)) user_io
 (
 	.clk_sys(clk_sys),
+	.clk_sd(clk_sys),
 	.conf_str(CONF_STR),
 
-	.SPI_SCK(SPI_SCK),
-	.CONF_DATA0(CONF_DATA0),
-	.SPI_SS2(SPI_SS2),
-	.SPI_DI(SPI_DI),
-	.SPI_DO(SPI_DO),
+	.SPI_CLK(SPI_SCK),
+	.SPI_SS_IO(CONF_DATA0),
+	.SPI_MOSI(SPI_DI),
+	.SPI_MISO(SPI_DO),
 
 	.img_mounted(img_mounted),
 	.img_size(img_size),
@@ -158,12 +185,19 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
-	.sd_buff_wr(sd_buff_wr),
+	.sd_din(sd_buff_din),
+	.sd_dout(sd_buff_dout),
+	.sd_dout_strobe(sd_buff_wr),
 
-	.ps2_key(ps2_key),
-	.ps2_mouse(ps2_mouse),
+	.key_strobe(key_strobe),
+	.key_code(key_code),
+	.key_pressed(key_pressed),
+	.key_extended(key_extended),
+
+	.mouse_x(mouse_x),
+	.mouse_y(mouse_y),
+	.mouse_flags(mouse_flags),
+	.mouse_strobe(mouse_strobe),
 
 	.joystick_0(joy1),
 	.joystick_1(joy2),
@@ -172,14 +206,24 @@ mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
 	.status(status),
 	.scandoubler_disable(scandoubler_disable),
 	.ypbpr(ypbpr),
+	.no_csync(no_csync)
+);
 
-	.ioctl_ce(ce_boot),
+data_io data_io
+(
+	.clk_sys(clk_sys),
+
+	.SPI_SCK(SPI_SCK),
+	.SPI_SS2(SPI_SS2),
+	.SPI_DI(SPI_DI),
+
+	.clkref_n(~ce_boot),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_dout),
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
-	.ioctl_file_ext(ioctl_file_ext)
+	.ioctl_fileext(ioctl_file_ext)
 );
 
 wire        rom_download  = ioctl_download && (ioctl_index == 8'd0);
@@ -195,10 +239,9 @@ reg  [22:0] tape_addr;
 reg         tape_wr = 0;
 reg         tape_ack;
 
-wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,status[15]});
-reg         rom_map[256] = '{default:0};
-reg   [7:0] map_addr;
-always @(posedge clk_sys) map_addr <= ram_a[21:14];
+wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,st_mf2[1]});
+reg [255:0] rom_map = 0;
+wire  [7:0] map_addr = ram_a[21:14];
 
 reg [8:0] page = 0;
 always @(posedge clk_sys) begin
@@ -311,7 +354,7 @@ reg model = 0;
 reg reset;
 
 always @(posedge clk_sys) begin
-	if(reset) model <= status[4];
+	if(reset) model <= st_cpc664;
 	reset <= status[0] | buttons[1] | rom_download | ext_download;
 end
 
@@ -383,7 +426,7 @@ always @(posedge clk_sys) begin
 end
 
 wire [7:0] u765_dout;
-wire       u765_sel = (fdc_sel[3:1] == 'b010) & ~status[17];
+wire       u765_sel = (fdc_sel[3:1] == 'b010) & ~st_fdc[1];
 
 reg  [1:0] u765_ready = 0;
 always @(posedge clk_sys) if(img_mounted[0]) u765_ready[0] <= |img_size;
@@ -396,7 +439,7 @@ u765 u765
 	.clk_sys(clk_sys),
 	.ce(ce_u765),
 
-	.fast(status[16]),
+	.fast(st_fdc[0]),
 
 	.a0(fdc_sel[0]),
 	.ready(u765_ready),
@@ -469,11 +512,11 @@ always @(posedge clk_sys) begin
 
 	if (reset) begin
 		mf2_en <= 0;
-		mf2_hidden <= |status[15:14];
+		mf2_hidden <= |st_mf2;
 		NMI <= 0;
 	end
 
-	if(~old_key_nmi & key_nmi & ~mf2_en & ~status[15]) NMI <= 1;
+	if(~old_key_nmi & key_nmi & ~mf2_en & ~st_mf2[1]) NMI <= 1;
 	if (NMI & ~old_m1 & m1 & (cpu_addr == 'h66)) begin
 		mf2_en <= 1;
 		mf2_hidden <= 0;
@@ -504,7 +547,7 @@ end
 
 //////////////////////////////////////////////////////////////////////
 
-wire mouse_rd = io_rd & ~status[19];
+wire mouse_rd = io_rd & st_mouse_en;
 
 wire [7:0] kmouse_dout;
 kempston_mouse kmouse
@@ -543,39 +586,39 @@ wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
 wire        m1, key_nmi, NMI;
 wire        io_wr, io_rd;
-wire        ce_pix_fs;
 wire        field;
 wire  [9:0] Fn;
 wire        tape_rec;
+wire  [1:0] b, g, r;
+wire        hs, vs, hbl, vbl;
 
 Amstrad_motherboard motherboard
 (
 	.reset(reset),
 	.clk(clk_sys),
-	.ce_4p(ce_4p),
-	.ce_4n(ce_4n),
 	.ce_16(ce_16),
 
-	.ps2_key(ps2_key),
+	.key_strobe(key_strobe),
+	.key_pressed(key_pressed),
+	.key_code(key_code),
 	.Fn(Fn),
 
-	.no_wait(status[6]),
-	.ppi_jumpers({2'b11, ~status[5], 1'b1}),
-	.crtc_type(~status[2]),
- 	.resync(1),
+	.no_wait(st_nowait),
+	.ppi_jumpers({2'b11, ~st_distributor, 1'b1}),
+	.crtc_type(~st_crtc),
+	.sync_filter(st_sync_filter),
 
-	.joy1(status[18] ? joy2 : joy1),
-	.joy2(status[18] ? joy1 : joy2),
+	.joy1(st_joyswap ? joy2 : joy1),
+	.joy2(st_joyswap ? joy1 : joy2),
 
 	.tape_in(tape_play),
 	.tape_out(tape_rec),
 	.tape_motor(tape_motor),
 
+	.stereo(st_stereo),
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
-	.pal(|status[13:11]),
-	.ce_pix_fs(ce_pix_fs),
 	.hblank(hbl),
 	.vblank(vbl),
 	.hsync(hs),
@@ -588,6 +631,7 @@ Amstrad_motherboard motherboard
 	.vram_din(vram_dout),
 	.vram_addr(vram_addr),
 
+	.rom_map(rom_map),
 	.ram64k(model),
 	.mem_rd(mem_rd),
 	.mem_wr(mem_wr),
@@ -605,16 +649,15 @@ Amstrad_motherboard motherboard
 
 //////////////////////////////////////////////////////////////////////
 
-wire ce_pix = hq2x ? ce_pix_fs : ce_16;
-
-wire [7:0] b, g, r;
-wire       hs, vs, hbl, vbl;
+wire [7:0] B, G, R;
+wire       HSync, VSync, HBlank, VBlank;
+wire       blank = HBlank | VBlank;
 
 color_mix color_mix
 (
 	.clk_vid(clk_sys),
-	.ce_pix(ce_pix),
-	.mix(status[13:11]),
+	.ce_pix(ce_16),
+	.mix(st_palette),
 
 	.HSync_in(hs),
 	.VSync_in(vs),
@@ -633,90 +676,64 @@ color_mix color_mix
 	.R_out(R)
 );
 
-wire [7:0] B, G, R;
-wire       HSync, VSync, HBlank, VBlank;
+mist_video #(.SD_HCNT_WIDTH(10)) mist_video (
+	.clk_sys     ( clk_sys    ),
 
-wire [1:0] scale = status[10:9];
-wire       hq2x = (scale == 1);
+	// OSD SPI interface
+	.SPI_SCK     ( SPI_SCK    ),
+	.SPI_SS3     ( SPI_SS3    ),
+	.SPI_DI      ( SPI_DI     ),
 
-reg [2:0] interlace;
-always @(posedge clk_sys) begin
-	reg old_vs;
-	
-	old_vs <= vs;
-	if(~old_vs & vs) interlace <= {interlace[1:0], field};
-end
+	// scanlines (00-none 01-25% 10-50% 11-75%)
+	.scanlines   ( st_scanlines  ),
 
-video_mixer #(800) video_mixer
-(
-	.*,
+	// non-scandoubled pixel clock divider 0 - clk_sys/4, 1 - clk_sys/2
+	.ce_divider  ( 1'b0       ),
 
-	.ce_pix_out(),
+	// 0 = HVSync 31KHz, 1 = CSync 15KHz
+	.scandoubler_disable ( scandoubler_disable ),
+	// disable csync without scandoubler
+	.no_csync    ( no_csync   ),
+	// YPbPr always uses composite sync
+	.ypbpr       ( ypbpr      ),
+	// Rotate OSD [0] - rotate [1] - left or right
+	.rotate      ( 2'b00      ),
+	// composite-like blending
+	.blend       ( 1'b0       ),
 
-	.scanlines({scale==3, scale==2}),
-	.scandoubler((scale || forced_scandoubler) && !interlace),
-	.mono(0),
+	// video in
+	.R           ( blank ? 6'd0 : R[7:2] ),
+	.G           ( blank ? 6'd0 : G[7:2] ),
+	.B           ( blank ? 6'd0 : B[7:2] ),
 
-	.VGA_R(MR),
-	.VGA_G(MG),
-	.VGA_B(MB),
-	.VGA_VS(MVS),
-	.VGA_HS(MHS)
+	.HSync       ( ~HSync     ),
+	.VSync       ( ~VSync     ),
+
+	// MiST video output signals
+	.VGA_R       ( VGA_R      ),
+	.VGA_G       ( VGA_G      ),
+	.VGA_B       ( VGA_B      ),
+	.VGA_VS      ( VGA_VS     ),
+	.VGA_HS      ( VGA_HS     )
 );
-
-wire       VGA_DE;
-wire [7:0] MB, MG, MR;
-wire       MHS, MVS;
-wire [5:0] osd_R, osd_G, osd_B;
-osd osd
-(
-	.clk_sys(clk_sys),
-	.SPI_SCK(SPI_SCK),
-	.SPI_SS3(SPI_SS3),
-	.SPI_DI(SPI_DI),
-	.HSync(MHS),
-	.VSync(MVS),
-	.B_in(VGA_DE ? MB[7:2] : 6'd0),
-	.G_in(VGA_DE ? MG[7:2] : 6'd0),
-	.R_in(VGA_DE ? MR[7:2] : 6'd0),
-	.B_out(osd_B),
-	.G_out(osd_G),
-	.R_out(osd_R)
-);
-
-vga_space vga_space
-(
-	.ypbpr_full(1),
-	.ypbpr_en(ypbpr),
-	.red(osd_R),
-	.green(osd_G),
-	.blue(osd_B),
-	.VGA_R(VGA_R),
-	.VGA_G(VGA_G),
-	.VGA_B(VGA_B)
-);
-
-assign VGA_HS = (forced_scandoubler & ~ypbpr) ? ~MHS : ~(MVS ^ MHS);
-assign VGA_VS = (forced_scandoubler & ~ypbpr) ? ~MVS : 1'b1;
 
 //////////////////////////////////////////////////////////////////////
 
-wire [7:0] audio_l, audio_r;
-wire       tape_sound = status[20];
+wire [9:0] audio_l, audio_r;
 
-sigma_delta_dac #(7) dac_l
+sigma_delta_dac #(10) dac_l
 (
-	.CLK(clk_sys & ce_16),
+	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin(audio_l - audio_l[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_l} + (st_tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
-sigma_delta_dac #(7) dac_r
+sigma_delta_dac #(10) dac_r
 (
-	.CLK(clk_sys & ce_16),
+	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin(audio_r - audio_r[7:2] + (tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_r} + (st_tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 

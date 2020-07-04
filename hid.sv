@@ -23,7 +23,9 @@ module hid
 	input        reset,
 	input        clk,
 
-	input [10:0] ps2_key,
+	input        key_strobe,
+	input        key_pressed,
+	input  [7:0] key_code,
 	input [24:0] ps2_mouse,
 
 	input  [6:0] joystick1,
@@ -49,12 +51,11 @@ wire [6:0] joy2 = row6 ? {joystick2[6:4], joystick2[0], joystick2[1], joystick2[
 
 reg [7:0] key[16] = '{default:0};
 
-wire press = ps2_key[9];
+wire press = key_pressed;
 always @(posedge clk) begin
 	reg old_flg, old_reset;
 	reg alt = 0;
 
-	old_flg <= ps2_key[10];
 	old_reset <= reset;
 
 	if(old_reset & ~reset) begin
@@ -62,9 +63,9 @@ always @(posedge clk) begin
 		Fn  <= 0;
 	end
 
-	if(old_flg ^ ps2_key[10]) begin
+	if(key_strobe) begin
 
-		case(ps2_key[7:0])
+		case(key_code)
 			8'h11: alt       <= press; // alt
 
 			8'h75: key[0][0] <= press; // up
@@ -153,7 +154,7 @@ always @(posedge clk) begin
 			8'h78: key_nmi   <= press; // F11
 		endcase
 		
-		case(ps2_key[7:0])
+		case(key_code)
 			8'h05: Fn[1] <= press & alt; // F1
 			8'h06: Fn[2] <= press & alt; // F2
 			8'h04: Fn[3] <= press & alt; // F3
