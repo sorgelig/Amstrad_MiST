@@ -651,6 +651,7 @@ Amstrad_motherboard motherboard
 
 wire [7:0] B, G, R;
 wire       HSync, VSync, HBlank, VBlank;
+wire       blank = HBlank | VBlank;
 
 color_mix color_mix
 (
@@ -701,9 +702,9 @@ mist_video #(.SD_HCNT_WIDTH(10)) mist_video (
 	.blend       ( 1'b0       ),
 
 	// video in
-	.R           ( R[7:2]     ),
-	.G           ( G[7:2]     ),
-	.B           ( B[7:2]     ),
+	.R           ( blank ? 6'd0 : R[7:2] ),
+	.G           ( blank ? 6'd0 : G[7:2] ),
+	.B           ( blank ? 6'd0 : B[7:2] ),
 
 	.HSync       ( ~HSync     ),
 	.VSync       ( ~VSync     ),

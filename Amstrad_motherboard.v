@@ -173,13 +173,15 @@ wire [7:0] ga_din = e244_n ? vram_d : D;
 wire ready;
 wire romen_n;
 
-assign hblank = crtc_hs;
-
 wire hsync_ga, hsync_filtered;
 wire vsync_ga, vsync_filtered;
+wire hblank_filtered;
+wire vblank_ga, vblank_filtered;
 
 assign hsync = sync_filter ? hsync_filtered : hsync_ga;
 assign vsync = sync_filter ? vsync_filtered : vsync_ga;
+assign hblank = sync_filter ? hblank_filtered : crtc_hs;
+assign vblank = sync_filter ? vblank_filtered : vblank_ga;
 
 crt_filter crt_filter
 (
@@ -189,6 +191,8 @@ crt_filter crt_filter
 	.VSYNC_I(crtc_vs),
 	.HSYNC_O(hsync_filtered),
 	.VSYNC_O(vsync_filtered),
+	.HBLANK(hblank_filtered),
+	.VBLANK(vblank_filtered),
 	.SHIFT(crtc_shift)
 );
 
@@ -222,7 +226,7 @@ ga40010 GateArray (
 	.RAMRD_N(),
 	.HSYNC_O(hsync_ga),
 	.VSYNC_O(vsync_ga),
-	.VBLANK(vblank),
+	.VBLANK(vblank_ga),
 	.SYNC_N(),
 	.INT_N(INT_n),
 	.BLUE_OE_N(blue[0]),
