@@ -55,12 +55,14 @@ module ga40010 (
 	output E244_N,
 	output ROMEN_N,
 	output RAMRD_N,
+	output ROM,        // not in original GA
 
+	output [1:0] MODE, // not in original GA
 	output HSYNC_O,
 	output VSYNC_O,
 	output SYNC_N,
 	output reg INT_N,
-	output VBLANK,
+	output VBLANK,     // not in original GA
 
 	output BLUE_OE_N,  // BLUE   50%
 	output BLUE,       // BLUE  100%
@@ -188,9 +190,12 @@ always @(posedge clk) begin
 	if (inkr_en) inkr[inksel[3:0]] <= D[4:0];
 end
 
+assign MODE = {mode1, mode0};
+
 /////// ROM/RAM MAPPING /////////
 
 wire rom = (~lromen & ~A[15] & ~A[14]) | (~hromen & A[15] & A[14]);
+assign ROM = rom;
 assign ROMEN_N = ~rom | MREQ_N | RD_N;
 assign RAMRD_N =  rom | MREQ_N | RD_N;
 

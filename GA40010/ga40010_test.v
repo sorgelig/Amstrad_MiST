@@ -110,7 +110,9 @@ ga40010 ga40010 (
 	.GREEN(GREEN),
 	.RED_OE_N(RED_OE_N),
 	.RED(RED),
-	.VBLANK()
+	.VBLANK(),
+	.ROM(),
+	.MODE()
 );
 
 /// CRTC INSTANCE ///
