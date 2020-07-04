@@ -53,7 +53,7 @@ module Amstrad
 
 //////////////////////////////////////////////////////////////////////////
 
-assign LED = ~mf2_en & ~ioctl_download & ~tape_motor;
+assign LED = ~mf2_en & ~ioctl_download & ~(tape_motor & tape_motor_led);
 
 localparam CONF_STR = {
 	"AMSTRAD;;",
@@ -394,6 +394,10 @@ always @(posedge clk_sys) begin
         end
     end
 end
+
+reg [24:0] tape_motor_cnt;
+wire       tape_motor_led = tape_motor_cnt[24] ? tape_motor_cnt[23:16] > tape_motor_cnt[7:0] : tape_motor_cnt[23:16] <= tape_motor_cnt[7:0];
+always @(posedge clk_sys) tape_motor_cnt <= tape_motor_cnt + 1'd1;
 
 tzxplayer tzxplayer
 (
