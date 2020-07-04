@@ -55,6 +55,7 @@ module Amstrad
 
 assign LED = ~mf2_en & ~ioctl_download & ~(tape_motor & tape_motor_led);
 
+`include "build_id.v"
 localparam CONF_STR = {
 	"AMSTRAD;;",
 	"S0,DSK,Mount Disk A:;",
@@ -77,7 +78,8 @@ localparam CONF_STR = {
 	"P3OGH,FDC,Original,Fast,Disabled;",
 	"P3O5,Distributor,Amstrad,Schneider;",
 	"P3O4,Model,CPC 6128,CPC 664;",
-	"P3T0,Reset & apply model;"
+	"P3T0,Reset & apply model;",
+	"V,",`BUILD_DATE
 };
 
 wire [1:0] st_scanlines = status[10:9];

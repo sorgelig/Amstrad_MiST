@@ -282,6 +282,7 @@ set_global_assignment -name OPTIMIZE_MULTI_CORNER_TIMING ON
 set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
 set_global_assignment -name SEED 1
 
+set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:build_id_verilog.tcl"
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 set_global_assignment -name ENABLE_SIGNALTAP OFF
 set_global_assignment -name USE_SIGNALTAP_FILE output_files/newga.stp
