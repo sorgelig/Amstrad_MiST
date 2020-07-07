@@ -616,7 +616,7 @@ Amstrad_motherboard motherboard
 	.keypad_mod(st_keypad_mod),
 	.Fn(Fn),
 
-	.no_wait(st_nowait),
+	.no_wait(st_nowait & ~tape_motor),
 	.ppi_jumpers({2'b11, ~st_distributor, 1'b1}),
 	.crtc_type(~st_crtc),
 	.sync_filter(st_sync_filter),
