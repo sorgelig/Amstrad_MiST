@@ -738,7 +738,7 @@ sigma_delta_dac #(10) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, audio_l} + (st_tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_l} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
@@ -746,7 +746,7 @@ sigma_delta_dac #(10) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, audio_r} + (st_tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_r} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 
