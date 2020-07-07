@@ -73,6 +73,8 @@ localparam CONF_STR = {
 	"P1OL,Sound output,Stereo,Mono;",
 	"P2OI,Joysticks swap,No,Yes;",
 	"P2OJ,Mouse,Disabled,Enabled;",
+	"P2OM,Right Shift,Backslash,Shift;",
+	"P2ON,Keypad,Numbers,Symbols;",
 	"P3OEF,Multiface 2,Enabled,Hidden,Disabled;",
 	"P3O6,CPU timings,Original,Fast;",
 	"P3OGH,FDC,Original,Fast,Disabled;",
@@ -95,6 +97,8 @@ wire       st_tape_sound = status[20];
 wire       st_stereo = ~status[21];
 wire [1:0] st_mf2 = status[15:14];
 wire       st_mouse_en = status[19];
+wire       st_right_shift_mod = status[22];
+wire       st_keypad_mod = status[23];
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -606,7 +610,10 @@ Amstrad_motherboard motherboard
 
 	.key_strobe(key_strobe),
 	.key_pressed(key_pressed),
+	.key_extended(key_extended),
 	.key_code(key_code),
+	.right_shift_mod(st_right_shift_mod),
+	.keypad_mod(st_keypad_mod),
 	.Fn(Fn),
 
 	.no_wait(st_nowait),
