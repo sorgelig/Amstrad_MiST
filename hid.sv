@@ -81,6 +81,7 @@ always @(posedge clk) begin
 
 			8'h71: key[2][0] <= press; // CLR (DEL)
 			8'h5A: key[2][2] <= press; // Enter
+			8'h14: key[2][7] <= press; // Ctrl (right)
 
 			8'h4A: key[3][6] <= press; // KP /
 		endcase
