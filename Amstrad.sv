@@ -245,9 +245,7 @@ reg  [22:0] tape_addr;
 reg         tape_wr = 0;
 reg         tape_ack;
 
-wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,st_mf2[1]});
 reg [255:0] rom_map = 0;
-wire  [7:0] map_addr = ram_a[21:14];
 
 reg [8:0] page = 0;
 always @(posedge clk_sys) begin
@@ -338,7 +336,7 @@ sdram sdram
 	.clk(clk_sys),
 	.clkref(ce_ref),
 
-	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en & ~rom_mask),
+	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
 	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : { 1'b0, model } ),
