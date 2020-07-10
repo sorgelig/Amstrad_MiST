@@ -750,8 +750,24 @@ sigma_delta_dac #(10) dac_r
 
 //////////////////////////////////////////////////////////////////////
 
-assign UART_TX = tape_motor;
-wire tape_motor;
-wire tape_play = tape_read ^ UART_RX;
+localparam ear_autostop_time = 5 * 64000000; // 5 sec
+reg        ear_input_detected;
+integer    ear_autostop_cnt = 0;
+reg        UART_RXd, UART_RXd2, tape_in;
+reg        tape_play;
+wire       tape_motor;
+assign     UART_TX = tape_motor;
+
+// detect tape input from UART, switch to external tape input for 5 secs
+// if signal transition detected
+always @(posedge clk_sys) begin
+	UART_RXd <= UART_RX;
+	UART_RXd2 <= UART_RXd;
+	tape_in <= UART_RXd2;
+
+	if (ear_autostop_cnt != 0) ear_autostop_cnt <= ear_autostop_cnt - 1'd1;
+	if (tape_in ^ UART_RXd2) ear_autostop_cnt <= ear_autostop_time;
+	tape_play <= (ear_autostop_cnt != 0) ? tape_in : tape_read;
+end
 
 endmodule
