@@ -377,7 +377,7 @@ always @(posedge clk_sys) begin
     reg old_tape_ack;
 
     if (reset) begin
-        tape_play_addr <= 0;
+        tape_play_addr <= 1;
         tape_last_addr <= 0;
         tape_rd <= 0;
         tape_reset <= 1;
