@@ -71,6 +71,7 @@ localparam CONF_STR = {
 	"P1O3,Sync signals,Original,Filtered;",
 	"P1OK,Tape sound,Disabled,Enabled;",
 	"P1OL,Sound output,Stereo,Mono;",
+	"P1OO,Playcity,Disabled,Enabled;",
 	"P2OI,Joysticks swap,No,Yes;",
 	"P2OJ,Mouse,Disabled,Enabled;",
 	"P2OM,Right Shift,Backslash,Shift;",
@@ -99,6 +100,7 @@ wire [1:0] st_mf2 = status[15:14];
 wire       st_mouse_en = status[19];
 wire       st_right_shift_mod = status[22];
 wire       st_keypad_mod = status[23];
+wire       st_playcity_ena = status[24];
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -480,6 +482,7 @@ u765 u765
 
 wire  [7:0] mf2_dout = (mf2_ram_en & mem_rd) ? mf2_ram_out : 8'hFF;
 
+reg         mf2_nmi = 0;
 reg         mf2_en = 0;
 reg         mf2_hidden = 0;
 reg   [7:0] mf2_ram[8192];
@@ -524,14 +527,14 @@ always @(posedge clk_sys) begin
 	if (reset) begin
 		mf2_en <= 0;
 		mf2_hidden <= |st_mf2;
-		NMI <= 0;
+		mf2_nmi <= 0;
 	end
 
-	if(~old_key_nmi & key_nmi & ~mf2_en & ~st_mf2[1]) NMI <= 1;
-	if (NMI & ~old_m1 & m1 & (cpu_addr == 'h66)) begin
+	if(~old_key_nmi & key_nmi & ~mf2_en & ~st_mf2[1]) mf2_nmi <= 1;
+	if (mf2_nmi & ~old_m1 & m1 & (cpu_addr == 'h66)) begin
 		mf2_en <= 1;
 		mf2_hidden <= 0;
-		NMI <= 0;
+		mf2_nmi <= 0;
 	end
 	if (mf2_en & ~old_m1 & m1 & cpu_addr == 'h65) begin
 		mf2_hidden <= 1;
@@ -555,6 +558,34 @@ always @(posedge clk_sys) begin
 	end
 
 end
+
+//////////////////////////////////////////////////////////////////////
+
+wire  [7:0] playcity_dout;
+wire  [9:0] playcity_audio_l, playcity_audio_r;
+wire        playcity_int_n, playcity_nmi;
+
+playcity playcity
+(
+	.clock(clk_sys),
+	.reset(reset),
+	.ena(st_playcity_ena),
+	.phi_n(phi_n),
+	.phi_en(phi_en_n),
+	.addr(cpu_addr),
+	.din(cpu_dout),
+	.dout(playcity_dout),
+	.cpu_di(cpu_din),
+	.m1_n(~m1),
+	.iorq_n(~iorq),
+	.rd_n(~rd),
+	.wr_n(~wr),
+	.int_n(playcity_int_n),
+	.nmi(playcity_nmi),
+	.cursor(cursor),
+	.audio_l(playcity_audio_l),
+	.audio_r(playcity_audio_r)
+);
 
 //////////////////////////////////////////////////////////////////////
 
@@ -595,13 +626,24 @@ multiplay_mouse mmouse
 
 wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
-wire        m1, key_nmi, NMI;
-wire        io_wr, io_rd;
+wire        phi_n, phi_en_n;
+wire        m1, key_nmi;
+wire        rd, wr, iorq;
 wire        field;
+wire        cursor;
 wire  [9:0] Fn;
 wire        tape_rec;
 wire  [1:0] b, g, r;
 wire        hs, vs, hbl, vbl;
+
+wire  [9:0] audio_l, audio_r;
+
+wire  [7:0] cpu_din = ram_dout & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout & playcity_dout;
+wire        NMI = playcity_nmi | mf2_nmi;
+wire        IRQ = ~playcity_int_n;
+
+wire io_rd = rd & iorq;
+wire io_wr = wr & iorq;
 
 Amstrad_motherboard motherboard
 (
@@ -650,13 +692,19 @@ Amstrad_motherboard motherboard
 	.mem_rd(mem_rd),
 	.mem_wr(mem_wr),
 	.mem_addr(ram_a),
+
+	.phi_n(phi_n),
+	.phi_en_n(phi_en_n),
 	.cpu_addr(cpu_addr),
 	.cpu_dout(cpu_dout),
-	.cpu_din(ram_dout & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout),
-	.io_wr(io_wr),
-	.io_rd(io_rd),
+	.cpu_din(cpu_din),
+	.iorq(iorq),
+	.rd(rd),
+	.wr(wr),
 	.m1(m1),
 	.nmi(NMI),
+	.irq(IRQ),
+	.cursor(cursor),
 
 	.key_nmi(key_nmi)
 );
@@ -733,13 +781,11 @@ mist_video #(.SD_HCNT_WIDTH(10), .OSD_X_OFFSET(10'd18)) mist_video (
 
 //////////////////////////////////////////////////////////////////////
 
-wire [9:0] audio_l, audio_r;
-
 sigma_delta_dac #(10) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, audio_l} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
+	.DACin({1'b0, audio_l} + {1'b0, playcity_audio_l} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
@@ -747,7 +793,7 @@ sigma_delta_dac #(10) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, audio_r} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
+	.DACin({1'b0, audio_r} + {1'b0, playcity_audio_r} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 

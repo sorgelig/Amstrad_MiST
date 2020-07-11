@@ -65,21 +65,30 @@ module Amstrad_motherboard
 	output [22:0] mem_addr,
 	output        mem_rd,
 	output        mem_wr,
+
+	// expansion port
+	output        phi_n,
+	output        phi_en_n,
+	output        phi_en_p,
 	output [15:0] cpu_addr,
 	output  [7:0] cpu_dout,
 	input   [7:0] cpu_din,
-	output        io_wr,
-	output        io_rd,
+	output        iorq,
+	output        mreq,
+	output        rd,
+	output        wr,
 	output        m1,
-	input         nmi
+	input         irq,
+	input         nmi,
+	output        cursor
 );
 
 wire crtc_shift;
 
 assign vram_addr = {MA[13:12], RA[2:0], MA[9:0]};
 
-assign io_rd = ~(RD_n | IORQ_n);
-assign io_wr = ~(WR_n | IORQ_n);
+wire io_rd = ~(RD_n | IORQ_n);
+wire io_wr = ~(WR_n | IORQ_n);
 
 assign mem_rd = ~(RD_n | MREQ_n);
 assign mem_wr = ~(WR_n | MREQ_n);
@@ -87,6 +96,10 @@ assign mem_wr = ~(WR_n | MREQ_n);
 assign cpu_dout = D;
 assign cpu_addr = A;
 assign m1 = ~M1_n;
+assign iorq = ~IORQ_n;
+assign mreq = ~MREQ_n;
+assign rd = ~RD_n;
+assign wr = ~WR_n;
 
 wire [15:0] A;
 wire  [7:0] D;
@@ -118,7 +131,7 @@ T80pa CPU
 	.rfsh_n(RFSH_n),
 
 	.busrq_n(1),
-	.int_n(INT_n),
+	.int_n(INT_n & ~irq),
 	.nmi_n(~nmi),
 	.wait_n(ready | (IORQ_n & MREQ_n) | no_wait) // workaround a bug in T80pa: should wait only in memory or io cycles
 );
@@ -146,6 +159,7 @@ UM6845R CRTC
 	.HSYNC(crtc_hs),
 	.DE(crtc_de),
 	.FIELD(field),
+	.CURSOR(cursor),
 
 	.MA(MA),
 	.RA(RA)
@@ -171,7 +185,6 @@ always @(posedge clk) begin
 end
 
 wire cclk_en_n, cclk_en_p;
-wire phi_en_n, phi_en_p;
 wire e244_n, cpu_n, ras_n, cas_n;
 wire [7:0] ga_din = e244_n ? vram_d : D;
 wire ready;
@@ -217,7 +230,7 @@ ga40010 GateArray (
 	.CCLK(),
 	.CCLK_EN_P(cclk_en_p),
 	.CCLK_EN_N(cclk_en_n),
-	.PHI_N(),
+	.PHI_N(phi_n),
 	.PHI_EN_N(phi_en_n),
 	.PHI_EN_P(phi_en_p),
 	.RAS_N(ras_n),
