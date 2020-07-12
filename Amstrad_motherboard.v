@@ -296,7 +296,9 @@ i8255 PPI
 assign tape_motor = portC[4];
 assign tape_out   = portC[5];
 
-wire [7:0] ch_a, ch_b, ch_c;
+wire  [7:0] psg_out;
+assign portAin = psg_oe_l ? 8'hFF : psg_out;
+
 YM2149 #(1'b0) PSG
 (
 	.RESET_L(~reset),
@@ -307,7 +309,8 @@ YM2149 #(1'b0) PSG
 	.I_BC1(portC[6]),
 	.I_BDIR(portC[7]),
 	.I_DA(portAout),
-	.O_DA(portAin),
+	.O_DA(psg_out),
+	.O_DA_OE_L(psg_oe_l),
 	.I_STEREO(stereo),
 
 	.O_AUDIO_L(audio_l),
