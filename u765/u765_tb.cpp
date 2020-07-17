@@ -62,6 +62,8 @@ int readstatus() {
 	int dout;
 
 	tb->a0 = 0;
+	tick(1);
+	tick(0);
 	tb->nRD = 0;
 	tb->nWR = 1;
 	tick(1);
@@ -79,6 +81,8 @@ int readstatus() {
 void sendbyte(int byte) {
 	while ((readstatus() & 0xcf) != 0x80) {};
 	tb->a0 = 1;
+	tick(1);
+	tick(0);
 	tb->nRD = 1;
 	tb->nWR = 0;
 	tb->din = byte;
@@ -96,6 +100,8 @@ int readbyte() {
 
 	while ((readstatus() & 0xcf) != 0xc0) {};
 	tb->a0 = 1;
+	tick(1);
+	tick(0);
 	tb->nRD = 0;
 	tb->nWR = 1;
 	tick(1);
@@ -122,6 +128,7 @@ void read_result() {
 
 void read_data() {
 	int status, byte;
+	int offs=0;
 	long chksum=0;
 
 	while(true) {
@@ -142,6 +149,9 @@ void read_data() {
 		tick(1);
 		tick(0);
 		chksum += byte;
+//		printf("%02x ", byte);
+//		offs++;
+//		if ((offs%16)==0) printf("\n %03x ", offs);
 	}
 }
 
@@ -241,12 +251,17 @@ int main(int argc, char **argv) {
 
 	cmd_recalibrate();
 	wait(1000);
+	cmd_read(0,0,0x41,2,0xff,2,0xff);
 	cmd_seek(1);
 	wait(1000);
 	cmd_read(1,0,0,5,0xff,2,0xff);
+	cmd_read(1,0,0x1d,2,0xff,2,0xff);
 	cmd_read(1,0,0xff,0,0xff,2,1);
-	cmd_read_id(0);
-	wait(1000);
+
+	for (int i=0;i<10;i++) {
+		cmd_read_id(0);
+		wait(1000);
+	}
 
 	fclose(edsk);
 	trace->close();
