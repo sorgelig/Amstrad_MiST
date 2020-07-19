@@ -297,6 +297,7 @@ assign tape_motor = portC[4];
 assign tape_out   = portC[5];
 
 wire  [7:0] psg_out;
+wire        psg_oe_l;
 assign portAin = psg_oe_l ? 8'hFF : psg_out;
 
 YM2149 #(1'b0) PSG
