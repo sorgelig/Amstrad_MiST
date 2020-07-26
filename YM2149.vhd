@@ -77,7 +77,7 @@ entity YM2149 is
   I_BC1               : in  std_logic;
   I_SEL_L             : in  std_logic := '1';
 
-  I_STEREO            : in  std_logic;
+  I_STEREO            : in  std_logic := '0';
 
   -- separate channel output
   O_AUDIO             : out std_logic_vector(7 downto 0);

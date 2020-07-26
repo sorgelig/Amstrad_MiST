@@ -75,6 +75,7 @@ ga40010 ga40010 (
 	.clk(clk),
 	.cen_16(CEN_16),
 	.clk_16(clk_16),
+	.fast(0),
 	.RESET_N(RESET_N),
 	.A(A[15:14]),
 	.D(D),
@@ -145,6 +146,7 @@ UM6845R CRTC
 	.HSYNC(CRTC_HSYNC),
 	.DE(CRTC_DE),
 	.FIELD(),
+	.CURSOR(),
 
 	.MA(MA),
 	.RA(RA)

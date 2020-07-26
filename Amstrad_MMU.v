@@ -39,7 +39,7 @@ module Amstrad_MMU
 );
 
 reg [2:0] RAMmap;
-reg [2:0] RAMpage;
+reg [4:0] RAMpage;
 reg [7:0] ROMbank;
 
 always @(posedge CLK) begin
@@ -48,33 +48,31 @@ always @(posedge CLK) begin
 	if (reset) begin
 		ROMbank    <=0;
 		RAMmap     <=0;
-		RAMpage    <=0;
+		RAMpage    <=3;
 	end
 	else begin
 		old_wr <= io_WR;
 		if (~old_wr & io_WR) begin
-
 			if (~A[15] && D[7:6] == 'b11 && ~ram64k) begin //7Fxx PAL MMR
-				RAMpage <= D[5:3];
+				RAMpage <= {1'b0, ~A[8], D[5:3]} + 5'd3;
 				RAMmap  <= D[2:0];
 			end
 
 			// As the ROM selection is built into the expansion cartridges,
 			// activate it only, when the appropriate ROM is present.
-			if (~A[13]) if (rom_map[D]) ROMbank <= D; else ROMbank <= 0;
+			if (~A[13]) ROMbank <= rom_map[D] ? D : 8'h00;
 		end
 	end
 end
 
 always @(*) begin
-	casex({~romen_n&(!A[15:14]), ~romen_n&(&A[15:14]), RAMmap, A[15:14]})
-		'b1x_xxx_xx: ram_A[22:14] = 0;                // lower rom
-		'b01_xxx_xx: ram_A[22:14] = {1'b1,  ROMbank}; // upper rom
-		'b00_0x1_11,                                                      // map1&3 bank3
-		'b00_010_xx: ram_A[22:14] = {2'b00, RAMpage, 2'b11,    A[15:14]}; // map2 bank0-3
-		'b00_011_01: ram_A[22:14] = {2'b00,  3'b000, 2'b10,       2'b11}; // map3 bank1
-		'b00_1xx_01: ram_A[22:14] = {2'b00, RAMpage, 2'b11, RAMmap[1:0]}; // map4 bank1
-		    default: ram_A[22:14] = {2'b00,  3'b000, 2'b10,    A[15:14]}; // default 64KB map
+	casex({romen_n, RAMmap, A[15:14]})
+		'b0_xxx_xx: ram_A[22:14] = {9{A[15]}} & {1'b1, ROMbank};  // lower/upper rom
+		'b1_0x1_11,                                               // map1&3 bank3
+		'b1_010_xx: ram_A[22:14] = {2'b00, RAMpage,    A[15:14]}; // map2   bank0-3 (ext  0..3)
+		'b1_011_01: ram_A[22:14] = {2'b00,    5'd2,       2'b11}; // map3   bank1   (base 3)
+		'b1_1xx_01: ram_A[22:14] = {2'b00, RAMpage, RAMmap[1:0]}; // map4-7 bank1   (ext  0..3)
+		   default: ram_A[22:14] = {2'b00,    5'd2,    A[15:14]}; // base 64KB map  (base 0..3)
 	endcase
 
 	ram_A[13:0] = A[13:0];

@@ -120,20 +120,14 @@ always @(*) begin
 		wr_next = we;
 		addr_next = addr;
 	end
-	else if(old_addr[15:1] != vram_addr[15:1]) begin
+	else if(tape_rd | tape_wr) begin
+		tape_req_next = 1;
+		wr_next = tape_wr;
+		addr_next = tape_addr;
+	end else if(old_addr[15:1] != vram_addr[15:1]) begin
 		vram_req_next = 1;
 		addr_next = vram_addr;
 	end
-	else begin
-		// The IO Controller advances in about 5-6 SDRAM cycles, thus
-		// no tape read/write should skipped even in this lowest priority
-		if(tape_rd | tape_wr) begin
-			tape_req_next = 1;
-			wr_next = tape_wr;
-			addr_next = tape_addr;
-		end
-	end
-
 end
 
 localparam MODE_NORMAL = 2'b00;

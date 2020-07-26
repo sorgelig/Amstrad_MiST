@@ -53,8 +53,9 @@ module Amstrad
 
 //////////////////////////////////////////////////////////////////////////
 
-assign LED = ~mf2_en & ~ioctl_download & ~tape_motor;
+assign LED = ~mf2_en & ~ioctl_download & ~(tape_motor & tape_motor_led);
 
+`include "build_id.v"
 localparam CONF_STR = {
 	"AMSTRAD;;",
 	"S0,DSK,Mount Disk A:;",
@@ -70,21 +71,25 @@ localparam CONF_STR = {
 	"P1O3,Sync signals,Original,Filtered;",
 	"P1OK,Tape sound,Disabled,Enabled;",
 	"P1OL,Sound output,Stereo,Mono;",
+	"P1OO,Playcity,Disabled,Enabled;",
 	"P2OI,Joysticks swap,No,Yes;",
 	"P2OJ,Mouse,Disabled,Enabled;",
+	"P2OM,Right Shift,Backslash,Shift;",
+	"P2ON,Keypad,Numbers,Symbols;",
 	"P3OEF,Multiface 2,Enabled,Hidden,Disabled;",
-//	"P3O6,CPU timings,Original,Fast;",
+	"P3O6,CPU timings,Original,Fast;",
 	"P3OGH,FDC,Original,Fast,Disabled;",
 	"P3O5,Distributor,Amstrad,Schneider;",
 	"P3O4,Model,CPC 6128,CPC 664;",
-	"P3T0,Reset & apply model;"
+	"P3T0,Reset & apply model;",
+	"V,",`BUILD_DATE
 };
 
 wire [1:0] st_scanlines = status[10:9];
 wire [2:0] st_palette = status[13:11];
 wire       st_sync_filter = status[3];
 wire       st_joyswap = status[18];
-wire       st_nowait = 0;//status[6]; // not working with the original GA
+wire       st_nowait = status[6];
 wire       st_cpc664 = status[4];
 wire       st_crtc = status[2];
 wire       st_distributor = status[5];
@@ -93,6 +98,9 @@ wire       st_tape_sound = status[20];
 wire       st_stereo = ~status[21];
 wire [1:0] st_mf2 = status[15:14];
 wire       st_mouse_en = status[19];
+wire       st_right_shift_mod = status[22];
+wire       st_keypad_mod = status[23];
+wire       st_playcity_ena = status[24];
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -239,9 +247,7 @@ reg  [22:0] tape_addr;
 reg         tape_wr = 0;
 reg         tape_ack;
 
-wire        rom_mask = ram_a[22] & (~rom_map[map_addr] | &{map_addr,st_mf2[1]});
 reg [255:0] rom_map = 0;
-wire  [7:0] map_addr = ram_a[21:14];
 
 reg [8:0] page = 0;
 always @(posedge clk_sys) begin
@@ -278,6 +284,9 @@ always @(posedge clk_sys) begin
 	end
 end
 
+// A 8MB bank is split to 2 halves
+// Fist 4 MB is OS ROM + RAM pages + MF2 ROM
+// Second 4 MB is max. 256 pages of HI rom
 always_comb begin
 	boot_wr = (rom_download | ext_download) & ioctl_wr;
 	boot_dout = ioctl_dout;
@@ -297,16 +306,16 @@ always_comb begin
 	end
 	else begin
 		case(ioctl_addr[24:14])
-				0,4: boot_a[22:14] = 9'h000;
-				1,5: boot_a[22:14] = 9'h100;
-				2,6: boot_a[22:14] = 9'h107;
-				3,7: boot_a[22:14] = 9'h1ff; //MF2
+				0,4: boot_a[22:14] = 9'h000; //OS
+				1,5: boot_a[22:14] = 9'h100; //BASIC
+				2,6: boot_a[22:14] = 9'h107; //AMSDOS
+				3,7: boot_a[22:14] = 9'h0ff; //MF2
 		  default: boot_wr = 0;
 		endcase
 
 		case(ioctl_addr[24:14])
-			 0,1,2,3: boot_bank = 0;
-			 4,5,6,7: boot_bank = 1;
+			 0,1,2,3: boot_bank = 0; //CPC6128
+			 4,5,6,7: boot_bank = 1; //CPC664
 			 default: boot_bank = 0;
 		endcase
 	end
@@ -332,9 +341,9 @@ sdram sdram
 	.clk(clk_sys),
 	.clkref(ce_ref),
 
-	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en & ~rom_mask),
+	.oe  (reset ? 1'b0      : mem_rd & ~mf2_ram_en),
 	.we  (reset ? boot_wr   : mem_wr & ~mf2_ram_en & ~mf2_rom_en),
-	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h1ff, cpu_addr[13:0] }: ram_a),
+	.addr(reset ? boot_a    : mf2_rom_en ? { 9'h0ff, cpu_addr[13:0] }: ram_a),
 	.bank(reset ? boot_bank : { 1'b0, model } ),
 	.din (reset ? boot_dout : cpu_dout),
 	.dout(ram_dout),
@@ -373,7 +382,7 @@ always @(posedge clk_sys) begin
     reg old_tape_ack;
 
     if (reset) begin
-        tape_play_addr <= 0;
+        tape_play_addr <= 1;
         tape_last_addr <= 0;
         tape_rd <= 0;
         tape_reset <= 1;
@@ -394,6 +403,10 @@ always @(posedge clk_sys) begin
         end
     end
 end
+
+reg [24:0] tape_motor_cnt;
+wire       tape_motor_led = tape_motor_cnt[24] ? tape_motor_cnt[23:16] > tape_motor_cnt[7:0] : tape_motor_cnt[23:16] <= tape_motor_cnt[7:0];
+always @(posedge clk_sys) tape_motor_cnt <= tape_motor_cnt + 1'd1;
 
 tzxplayer tzxplayer
 (
@@ -421,8 +434,6 @@ always @(posedge clk_sys) begin
 	if(~old_wr && io_wr && !fdc_sel[3:1]) begin
 		motor <= cpu_dout[0];
 	end
-	
-	if(img_mounted) motor <= 0;
 end
 
 wire [7:0] u765_dout;
@@ -469,6 +480,7 @@ u765 u765
 
 wire  [7:0] mf2_dout = (mf2_ram_en & mem_rd) ? mf2_ram_out : 8'hFF;
 
+reg         mf2_nmi = 0;
 reg         mf2_en = 0;
 reg         mf2_hidden = 0;
 reg   [7:0] mf2_ram[8192];
@@ -513,21 +525,21 @@ always @(posedge clk_sys) begin
 	if (reset) begin
 		mf2_en <= 0;
 		mf2_hidden <= |st_mf2;
-		NMI <= 0;
+		mf2_nmi <= 0;
 	end
 
-	if(~old_key_nmi & key_nmi & ~mf2_en & ~st_mf2[1]) NMI <= 1;
-	if (NMI & ~old_m1 & m1 & (cpu_addr == 'h66)) begin
+	if(~old_key_nmi & key_nmi & ~mf2_en & ~st_mf2[1]) mf2_nmi <= 1;
+	if (mf2_nmi & ~old_m1 & m1 & (cpu_addr == 'h66)) begin
 		mf2_en <= 1;
 		mf2_hidden <= 0;
-		NMI <= 0;
+		mf2_nmi <= 0;
 	end
 	if (mf2_en & ~old_m1 & m1 & cpu_addr == 'h65) begin
 		mf2_hidden <= 1;
 	end
 
 	if (~old_io_wr & io_wr & cpu_addr[15:2] == 14'b11111110111010) begin //fee8/feea
-		mf2_en <= ~cpu_addr[1] & ~mf2_hidden;
+		mf2_en <= ~cpu_addr[1] & ~mf2_hidden & ~st_mf2[1];
 	end else if (~old_io_wr & io_wr & |mf2_store_addr[12:0]) begin //store hw register in MF2 RAM
 		if (cpu_addr[15:8] == 8'h7f & cpu_dout[7:6] == 2'b00) mf2_pen_index <= cpu_dout[4:0];
 		if (cpu_addr[15:8] == 8'hbc) mf2_crtc_register <= cpu_dout[3:0];
@@ -544,6 +556,34 @@ always @(posedge clk_sys) begin
 	end
 
 end
+
+//////////////////////////////////////////////////////////////////////
+
+wire  [7:0] playcity_dout;
+wire  [9:0] playcity_audio_l, playcity_audio_r;
+wire        playcity_int_n, playcity_nmi;
+
+playcity playcity
+(
+	.clock(clk_sys),
+	.reset(reset),
+	.ena(st_playcity_ena),
+	.phi_n(phi_n),
+	.phi_en(phi_en_n),
+	.addr(cpu_addr),
+	.din(cpu_dout),
+	.dout(playcity_dout),
+	.cpu_di(cpu_din),
+	.m1_n(~m1),
+	.iorq_n(~iorq),
+	.rd_n(~rd),
+	.wr_n(~wr),
+	.int_n(playcity_int_n),
+	.nmi(playcity_nmi),
+	.cursor(cursor),
+	.audio_l(playcity_audio_l),
+	.audio_r(playcity_audio_r)
+);
 
 //////////////////////////////////////////////////////////////////////
 
@@ -584,13 +624,24 @@ multiplay_mouse mmouse
 
 wire [15:0] cpu_addr;
 wire  [7:0] cpu_dout;
-wire        m1, key_nmi, NMI;
-wire        io_wr, io_rd;
+wire        phi_n, phi_en_n;
+wire        m1, key_nmi;
+wire        rd, wr, iorq;
 wire        field;
+wire        cursor;
 wire  [9:0] Fn;
 wire        tape_rec;
 wire  [1:0] b, g, r;
 wire        hs, vs, hbl, vbl;
+
+wire  [9:0] audio_l, audio_r;
+
+wire  [7:0] cpu_din = ram_dout & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout & playcity_dout;
+wire        NMI = playcity_nmi | mf2_nmi;
+wire        IRQ = ~playcity_int_n;
+
+wire io_rd = rd & iorq;
+wire io_wr = wr & iorq;
 
 Amstrad_motherboard motherboard
 (
@@ -600,10 +651,13 @@ Amstrad_motherboard motherboard
 
 	.key_strobe(key_strobe),
 	.key_pressed(key_pressed),
+	.key_extended(key_extended),
 	.key_code(key_code),
+	.right_shift_mod(st_right_shift_mod),
+	.keypad_mod(st_keypad_mod),
 	.Fn(Fn),
 
-	.no_wait(st_nowait),
+	.no_wait(st_nowait & ~tape_motor),
 	.ppi_jumpers({2'b11, ~st_distributor, 1'b1}),
 	.crtc_type(~st_crtc),
 	.sync_filter(st_sync_filter),
@@ -636,13 +690,19 @@ Amstrad_motherboard motherboard
 	.mem_rd(mem_rd),
 	.mem_wr(mem_wr),
 	.mem_addr(ram_a),
+
+	.phi_n(phi_n),
+	.phi_en_n(phi_en_n),
 	.cpu_addr(cpu_addr),
 	.cpu_dout(cpu_dout),
-	.cpu_din(ram_dout & mf2_dout & fdc_dout & kmouse_dout & smouse_dout & mmouse_dout),
-	.io_wr(io_wr),
-	.io_rd(io_rd),
+	.cpu_din(cpu_din),
+	.iorq(iorq),
+	.rd(rd),
+	.wr(wr),
 	.m1(m1),
 	.nmi(NMI),
+	.irq(IRQ),
+	.cursor(cursor),
 
 	.key_nmi(key_nmi)
 );
@@ -676,7 +736,7 @@ color_mix color_mix
 	.R_out(R)
 );
 
-mist_video #(.SD_HCNT_WIDTH(10)) mist_video (
+mist_video #(.SD_HCNT_WIDTH(10), .OSD_X_OFFSET(10'd18)) mist_video (
 	.clk_sys     ( clk_sys    ),
 
 	// OSD SPI interface
@@ -719,13 +779,11 @@ mist_video #(.SD_HCNT_WIDTH(10)) mist_video (
 
 //////////////////////////////////////////////////////////////////////
 
-wire [9:0] audio_l, audio_r;
-
 sigma_delta_dac #(10) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, audio_l} + (st_tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_l} + {1'b0, playcity_audio_l} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
 	.DACout(AUDIO_L)
 );
 
@@ -733,14 +791,30 @@ sigma_delta_dac #(10) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({1'b0, audio_r} + (st_tape_sound ? {tape_rec, tape_play, 4'd0} : 0)),
+	.DACin({1'b0, audio_r} + {1'b0, playcity_audio_r} + (st_tape_sound ? {tape_rec, tape_play, 6'd0} : 0)),
 	.DACout(AUDIO_R)
 );
 
 //////////////////////////////////////////////////////////////////////
 
-assign UART_TX = tape_motor;
-wire tape_motor;
-wire tape_play = tape_read ^ UART_RX;
+localparam ear_autostop_time = 5 * 64000000; // 5 sec
+reg        ear_input_detected;
+integer    ear_autostop_cnt = 0;
+reg        UART_RXd, UART_RXd2, tape_in;
+reg        tape_play;
+wire       tape_motor;
+assign     UART_TX = tape_motor;
+
+// detect tape input from UART, switch to external tape input for 5 secs
+// if signal transition detected
+always @(posedge clk_sys) begin
+	UART_RXd <= UART_RX;
+	UART_RXd2 <= UART_RXd;
+	tape_in <= UART_RXd2;
+
+	if (ear_autostop_cnt != 0) ear_autostop_cnt <= ear_autostop_cnt - 1'd1;
+	if (tape_in ^ UART_RXd2) ear_autostop_cnt <= ear_autostop_time;
+	tape_play <= (ear_autostop_cnt != 0) ? tape_in : tape_read;
+end
 
 endmodule
